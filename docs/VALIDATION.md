@@ -23,7 +23,7 @@ WebAssembly's theoretical portability alone.
 | The graphical host renders and takes keyboard input | Met | Real display (X11 and Wayland); real X key events on Xvfb; see [Graphical backend](#graphical-backend) |
 | Headless output is deterministic and tested | Met | Fresh instances, a fresh engine, and repeated `render` calls give identical traces |
 | x86-64 and ARM64 hosts run the exact same component | Met for x86-64 natively and ARM64 **under QEMU only** | Same file, same hash, byte-identical traces; see [Cross-architecture](#cross-architecture) |
-| Rebuild and test from documented commands | Met | `just test`, `just test-arm64`, `nix flake check`; see [Reproduce](#reproduce) |
+| Rebuild and test from documented commands | Met | `just test`, `just test-arm64`, and `nix flake check` (every check passed); see [Nix](#nix) and [Reproduce](#reproduce) |
 
 ## Component
 
@@ -41,10 +41,10 @@ app        moving-square, canvas 320x180, 60 ticks/s
 ```
 
 The core module's only import is `portable:platform/log@0.1.0#write`; there is
-no WASI. Rebuilding gives the same hash. The dev shell's toolchain adds
-`rust-src`, which changes a few embedded standard-library paths, so the
-Nix-built component has a different (reproducible) hash; see [Nix](#nix). The
-embedded paths contain no home directory.
+no WASI. Rebuilding gives the same hash. The Nix-built component has a
+different hash, `e5eded92…`, because two embedded standard-library paths
+differ; it too rebuilds bit for bit. See [Nix](#nix). No embedded path contains
+a home directory.
 
 ## x86-64 (native)
 
@@ -116,8 +116,34 @@ Both reported component sha256 `b14292c8…6610`.
 
 ## Nix
 
-The first full `nix flake check` in the Nix sandbox was still running when this
-commit was pushed; its results will be recorded here in a follow-up commit.
+`nix flake check` passed every check in 19 min 35 s. It ran at the commit
+before the README merge with GitHub's initial commit; the merged commit on
+`main` evaluates to the same check derivations. Most derivations were built
+on an x86-64 remote builder, and the keyboard test and the ARM64 host build ran
+on the laptop.
+
+| Check | Result |
+| --- | --- |
+| `guest` | the component; `nix build --rebuild` rebuilt it bit for bit |
+| `guestLogic` | 7 passed |
+| `host` | builds with SDL3 and runs its test suite: 18 unit, 8 diagnostics, 7 replay passed |
+| `clippy` | no warnings with `--deny warnings` |
+| `keyboard` | Xvfb in the sandbox, SDL's software renderer (no GPU there): right 61, down 31, left 3 while paused, 19 idle after resuming; the replay of the recording ended on the same frame |
+| `hostAarch64` | the headless ARM64 host, cross-compiled with the ARM64 GCC toolchain |
+| `hostAarch64Tests` | its test suite under QEMU: 13 unit, 8 diagnostics, 7 replay passed |
+| `crossArch` | the x86-64 host natively and the ARM64 host under QEMU, on the Nix-built component: every trace identical across hosts and to the golden files |
+
+The Nix-built component:
+
+```text
+moving-square.wasm  sha256 e5eded92c168762c43b99e50db4d14c5cf43789b20ef444be8fa8a190b55c43d  29896 bytes
+```
+
+It differs from the dev-shell build in exactly two embedded source paths: the
+dev shell's toolchain includes `rust-src` and records its local copy of two
+standard-library files, where the Nix toolchain records the usual
+`/rustc/<hash>/` paths. Behavior is the same: in the sandbox both hosts produced
+the trace hashes listed under [Cross-architecture](#cross-architecture).
 
 ## Not validated
 
