@@ -1,0 +1,480 @@
+# The Windows build on Windows itself. The host and its MSI are cross-compiled
+# on Linux with Nix, as everywhere else in this repository; a GitHub-hosted
+# Windows runner then installs the MSI with Windows Installer, checks what it
+# installed, replays every golden trace with the installed host, plays the
+# tour script in a window, opens the Start-menu shortcut, and uninstalls.
+# Every check adds its results to the run's summary, which also names the
+# runner image and the renderer SDL chose; docs/VALIDATION.md quotes one run.
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build on Linux with Nix
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: cachix/install-nix-action@v31
+
+      - name: Build the MSI and the Windows host
+        run: nix build --print-build-logs .#msi .#host-windows
+
+      # The scripts and traces travel with the binaries rather than in a
+      # checkout on Windows, where Git may rewrite their line endings.
+      - name: Collect the files for Windows
+        run: |
+          mkdir windows-x64
+          cp result/*.msi result-1/bin/portable-host.exe result-1/bin/SDL3.dll windows-x64/
+          cp -r tests/replay windows-x64/replay
+          {
+            echo '## Built on Linux'
+            echo
+            echo "\`nix build .#msi .#host-windows\` with $(nix --version), on $ImageOS $ImageVersion."
+            echo
+            echo '| File | Bytes | sha256 |'
+            echo '| --- | --- | --- |'
+            for file in windows-x64/*.msi windows-x64/*.exe windows-x64/*.dll; do
+              echo "| $(basename "$file") | $(stat -c %s "$file") | \`$(sha256sum "$file" | cut -d ' ' -f 1)\` |"
+            done
+            echo
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: portable-host-windows-x64
+          path: windows-x64
+          if-no-files-found: error
+
+  windows:
+    name: Install and run on Windows
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      INSTALL_DIR: C:\Program Files\Portable Host
+      LOGS: ${{ github.workspace }}\logs
+      # Every step appends its results here and to the run's summary.
+      REPORT: ${{ github.workspace }}\logs\report.md
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: portable-host-windows-x64
+          path: dist
+
+      - name: Describe the runner
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:LOGS | Out-Null
+          Add-Type -AssemblyName System.Windows.Forms
+          $os = Get-CimInstance Win32_OperatingSystem
+          $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+          $admin = ([Security.Principal.WindowsPrincipal] $identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          $uac = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
+          $defender = try {
+            $status = Get-MpComputerStatus
+            "antivirus enabled: $($status.AntivirusEnabled), real-time protection: $($status.RealTimeProtectionEnabled)"
+          } catch { "status unavailable: $($_.Exception.Message)" }
+          $msi = (Get-Item "$env:SystemRoot\System32\msi.dll").VersionInfo.ProductVersion
+          $report = @(
+            '## Windows runner'
+            ''
+            '| | |'
+            '| --- | --- |'
+            "| Runner image | ``$env:ImageOS`` $env:ImageVersion |"
+            "| Windows | $($os.Caption), version $($os.Version), build $($os.BuildNumber) |"
+            "| Display adapter | $((Get-CimInstance Win32_VideoController).Name -join ', ') |"
+            "| Screen | $($screen.Width)x$($screen.Height) |"
+            "| Session | $((Get-Process -Id $PID).SessionId), interactive: $([Environment]::UserInteractive) |"
+            "| Account | $($identity.Name), administrator: $admin, UAC (EnableLUA): $($uac.EnableLUA), admin consent prompt: $($uac.ConsentPromptBehaviorAdmin) |"
+            "| Windows Defender | $defender |"
+            "| Windows Installer | msi.dll $msi |"
+            "| PowerShell | $($PSVersionTable.PSVersion) |"
+            ''
+          )
+          $report | Out-Host
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY, $env:REPORT -Value $report
+
+      - name: Install the MSI
+        id: install
+        run: |
+          $msi = @(Get-ChildItem -LiteralPath dist -Filter *.msi)
+          if ($msi.Count -ne 1) { throw "expected one MSI in the artifact, found $($msi.Count)" }
+          $log = Join-Path $env:LOGS install.log
+          $arguments = "/i `"$($msi[0].FullName)`" /qn /l*v `"$log`""
+          Write-Host "msiexec $arguments"
+          $msiexec = Start-Process msiexec.exe -ArgumentList $arguments -Wait -PassThru
+          $report = @(
+            '## Install'
+            ''
+            "``msiexec /i $($msi[0].Name) /qn /l*v install.log`` exited with $($msiexec.ExitCode)."
+            ''
+          )
+          $report | Out-Host
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY, $env:REPORT -Value $report
+          if ($msiexec.ExitCode -ne 0) { throw "msiexec /i exited with $($msiexec.ExitCode); see install.log" }
+
+      - name: Check the installed files and the uninstall entry
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          $dir = $env:INSTALL_DIR
+          $installed = @(Get-ChildItem -LiteralPath $dir -Recurse -Force | ForEach-Object { $_.FullName.Substring($dir.Length + 1) })
+          $found = ($installed | Sort-Object) -join ', '
+          $wanted = ('LICENSE.txt', 'moving-square.wasm', 'portable-host.exe', 'SDL3.dll' | Sort-Object) -join ', '
+          if ($found -cne $wanted) { throw "installed $found; expected $wanted" }
+          foreach ($name in 'portable-host.exe', 'SDL3.dll') {
+            $built = (Get-FileHash -LiteralPath (Join-Path dist $name)).Hash
+            if ((Get-FileHash -LiteralPath (Join-Path $dir $name)).Hash -ne $built) {
+              throw "the installed $name differs from the one the build job made"
+            }
+          }
+          $rows = Get-ChildItem -LiteralPath $dir -File | Sort-Object Name | ForEach-Object {
+            "| $($_.Name) | $($_.Length) | ``$((Get-FileHash -LiteralPath $_.FullName).Hash.ToLowerInvariant())`` |"
+          }
+          $entries = @(Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+            Where-Object DisplayName -eq 'Portable Host')
+          if ($entries.Count -ne 1) { throw "expected one uninstall entry for Portable Host, found $($entries.Count)" }
+          $entry = $entries[0]
+          $report = @(
+            '## Installed files'
+            ''
+            "Exactly these files in ``$dir``; ``portable-host.exe`` and ``SDL3.dll`` are byte-identical to the build job's:"
+            ''
+            '| File | Bytes | sha256 |'
+            '| --- | --- | --- |'
+            $rows
+            ''
+            "Windows lists ""$($entry.DisplayName)"" $($entry.DisplayVersion) by $($entry.Publisher) as installed: ``HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\$($entry.PSChildName)``."
+            ''
+          )
+          $report | Out-Host
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY, $env:REPORT -Value $report
+
+      - name: Check the Start-menu shortcut
+        id: shortcut
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          $relative = 'Portable Host\Moving Square.lnk'
+          $menus = [ordered]@{
+            'all users' = [Environment]::GetFolderPath('CommonPrograms')
+            'this user' = [Environment]::GetFolderPath('Programs')
+          }
+          $found = @(foreach ($menu in $menus.GetEnumerator()) {
+            $path = Join-Path $menu.Value $relative
+            if (Test-Path -LiteralPath $path) { [pscustomobject]@{ Menu = $menu.Key; Path = $path } }
+          })
+          if ($found.Count -eq 0) {
+            $links = Get-ChildItem -LiteralPath @($menus.Values) -Recurse -Filter *.lnk -ErrorAction SilentlyContinue
+            throw "no Start-menu shortcut $relative; the Start menus hold:`n$(($links.FullName) -join "`n")"
+          }
+          if ($found.Count -gt 1) { throw "the shortcut is in both Start menus: $($found.Path -join ', ')" }
+          $shortcut = $found[0]
+          Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value "path=$($shortcut.Path)"
+          # Windows Installer resolved the shortcut when it installed; read it back.
+          $link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut.Path)
+          $actual = [ordered]@{
+            'Target' = $link.TargetPath
+            'Arguments' = $link.Arguments
+            'Working directory' = $link.WorkingDirectory
+          }
+          $wanted = [ordered]@{
+            'Target' = Join-Path $env:INSTALL_DIR portable-host.exe
+            'Arguments' = "play `"$(Join-Path $env:INSTALL_DIR moving-square.wasm)`""
+            'Working directory' = $env:INSTALL_DIR
+          }
+          $report = @(
+            '## Start-menu shortcut'
+            ''
+            "``$($shortcut.Path)``, in the Start menu for $($shortcut.Menu). Read back with ``WScript.Shell``:"
+            ''
+            '| Property | Value |'
+            '| --- | --- |'
+            ($actual.GetEnumerator() | ForEach-Object { "| $($_.Key) | ``$($_.Value)`` |" })
+            ''
+          )
+          $report | Out-Host
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY, $env:REPORT -Value $report
+          foreach ($key in $wanted.Keys) {
+            if ($actual[$key].TrimEnd('\') -ne $wanted[$key]) { throw "the shortcut's $key is '$($actual[$key])', not '$($wanted[$key])'" }
+          }
+          # A per-machine package's shortcuts belong in the all-users Start menu.
+          if ($shortcut.Menu -ne 'all users') { throw "the shortcut is in the per-user Start menu, $($shortcut.Path)" }
+
+      - name: Replay every script with the installed host
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          $exe = Join-Path $env:INSTALL_DIR portable-host.exe
+          $wasm = Join-Path $env:INSTALL_DIR moving-square.wasm
+          $failed = @()
+          $rows = foreach ($script in Get-ChildItem -LiteralPath dist\replay -Filter *.script | Sort-Object Name) {
+            $golden = [IO.Path]::ChangeExtension($script.FullName, '.trace')
+            $out = Join-Path $env:LOGS "replay-$($script.BaseName).out"
+            & $exe replay $wasm $script.FullName --expect $golden *> $out
+            $code = $LASTEXITCODE
+            $text = [string](Get-Content -Raw -LiteralPath $out)
+            Write-Host $text
+            $trace = [regex]::Match($text, 'trace\s+sha256 ([0-9a-f]{64}) \((\d+) frames\)')
+            if ($code -eq 0 -and $trace.Success -and $text -match '(?m)^golden\s+.*: identical') {
+              "| $($script.BaseName) | $($trace.Groups[2].Value) | ``$($trace.Groups[1].Value)`` | identical to the golden trace |"
+            } else {
+              $failed += $script.BaseName
+              "| $($script.BaseName) | | | **failed** (exit code $code) |"
+            }
+          }
+          $report = @(
+            '## Replays'
+            ''
+            'The installed host, replaying every script with the installed component:'
+            ''
+            '| Script | Frames | Trace sha256 | Result |'
+            '| --- | --- | --- | --- |'
+            $rows
+            ''
+          )
+          $report | Out-Host
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY, $env:REPORT -Value $report
+          if ($failed) { throw "the installed host failed on $($failed -join ', '); see replay-*.out" }
+
+      - name: Inspect the installed component
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          $out = Join-Path $env:LOGS inspect.out
+          & (Join-Path $env:INSTALL_DIR portable-host.exe) inspect (Join-Path $env:INSTALL_DIR moving-square.wasm) *> $out
+          $code = $LASTEXITCODE
+          $text = ([string](Get-Content -Raw -LiteralPath $out)).TrimEnd()
+          $report = @(
+            '## Inspect'
+            ''
+            "``portable-host.exe inspect`` on the installed component (exit code $code):"
+            ''
+            '```text'
+            $text
+            '```'
+            ''
+          )
+          $report | Out-Host
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY, $env:REPORT -Value $report
+          if ($code -ne 0) { throw "inspect exited with $code" }
+          if ($text -match 'REFUSED') { throw 'the host refused one of the component''s imports' }
+          if ($text -notmatch '(?m)^app\s+moving-square, canvas 320x180, 60 ticks/s') { throw 'inspect did not report the app''s declared info' }
+
+      - name: Play the tour script in a window
+        id: play
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        timeout-minutes: 5
+        run: |
+          $script = (Resolve-Path -LiteralPath dist\replay\tour.script).Path
+          $shot = Join-Path $env:LOGS tour.png
+          $out = Join-Path $env:LOGS play.out
+          & (Join-Path $env:INSTALL_DIR portable-host.exe) play (Join-Path $env:INSTALL_DIR moving-square.wasm) --script $script --exit-at-end --screenshot $shot *> $out
+          $code = $LASTEXITCODE
+          $text = ([string](Get-Content -Raw -LiteralPath $out)).TrimEnd()
+          $display = [regex]::Match($text, '(?m)^display\s+(.+?)\r?$').Groups[1].Value
+          $report = @(
+            '## Window'
+            ''
+            "``portable-host.exe play moving-square.wasm --script tour.script --exit-at-end --screenshot tour.png``, with the installed host and component (exit code $code). SDL: **$display**."
+            ''
+            '```text'
+            $text
+            '```'
+            ''
+          )
+          $report | Out-Host
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY, $env:REPORT -Value $report
+          if ($code -ne 0) { throw "play exited with $code" }
+          # The run must end on the golden trace's last frame, as in tests/play-compare.nu.
+          $last = Get-Content -LiteralPath dist\replay\tour.trace | Where-Object { $_ -ne '' } | Select-Object -Last 1
+          $frame = ($last -split ' \| ', 2)[1]
+          $golden = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($frame))).ToLowerInvariant()
+          $ticks = [regex]::Match((Get-Content -Raw -LiteralPath $script), '(?m)^\s*ticks\s+(\d+)').Groups[1].Value
+          $played = [regex]::Match($text, '(?m)^played\s+(\d+) ticks; final frame sha256 ([0-9a-f]{64})')
+          if (-not $played.Success) { throw 'play did not report the frame it ended on' }
+          if ($played.Groups[1].Value -ne $ticks) { throw "played $($played.Groups[1].Value) ticks, not $ticks" }
+          if ($played.Groups[2].Value -ne $golden) { throw "ended on frame $($played.Groups[2].Value), not on the golden trace's last frame $golden" }
+          if ($text -notmatch '(?m)^headless\s+replaying the same') { throw 'the headless replay of the session did not end on the same frame' }
+          if (-not (Test-Path -LiteralPath $shot)) { throw 'play saved no screenshot' }
+
+      # The host's frame hash describes what the app asked to draw. Under Wine,
+      # SDL's Direct3D renderer drew nothing while the host still reported
+      # success, so the pixels themselves are checked: the centre of every
+      # canvas pixel in the screenshot against the golden frame.
+      - name: Check the screenshot's pixels
+        if: ${{ !cancelled() && steps.play.outcome == 'success' }}
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          $last = Get-Content -LiteralPath dist\replay\tour.trace | Where-Object { $_ -ne '' } | Select-Object -Last 1
+          $frame = ($last -split ' \| ', 2)[1]
+          $size = [regex]::Match((Get-Content -Raw -LiteralPath (Join-Path $env:LOGS play.out)), 'canvas (\d+)x(\d+)')
+          $cw = [int]$size.Groups[1].Value
+          $ch = [int]$size.Groups[2].Value
+          # The colour the frame gives each canvas pixel.
+          $expected = [int[]]::new($cw * $ch)
+          foreach ($command in $frame -split '; ') {
+            if ($command -match '^clear #([0-9a-f]{6})$') {
+              $color = [Convert]::ToInt32($Matches[1], 16)
+              for ($i = 0; $i -lt $expected.Length; $i++) { $expected[$i] = $color }
+            } elseif ($command -match '^fill (-?\d+),(-?\d+) (\d+)x(\d+) #([0-9a-f]{6})$') {
+              $color = [Convert]::ToInt32($Matches[5], 16)
+              $left = [math]::Max([int]$Matches[1], 0)
+              $top = [math]::Max([int]$Matches[2], 0)
+              $right = [math]::Min([int]$Matches[1] + [int]$Matches[3], $cw)
+              $bottom = [math]::Min([int]$Matches[2] + [int]$Matches[4], $ch)
+              for ($y = $top; $y -lt $bottom; $y++) { for ($x = $left; $x -lt $right; $x++) { $expected[$y * $cw + $x] = $color } }
+            } else {
+              throw "unknown draw command: $command"
+            }
+          }
+          $bitmap = [System.Drawing.Bitmap]::new((Join-Path $env:LOGS tour.png))
+          $width = $bitmap.Width
+          $height = $bitmap.Height
+          # Where the window put the canvas: layout() in crates/host/src/sdl.rs.
+          $textScale = [math]::Clamp([math]::Round([math]::Min($height * 0.03, $width * 0.02) / 8.0, [MidpointRounding]::AwayFromZero), 1.0, 4.0)
+          $area = [math]::Max($height - (8 + 2 * 3) * $textScale, 1.0)
+          $fit = [math]::Min([double]$width / $cw, $area / $ch)
+          $scale = if ($fit -ge 1) { [math]::Floor($fit) } else { $fit }
+          $originX = [math]::Floor(($width - $cw * $scale) / 2)
+          $originY = [math]::Floor(($area - $ch * $scale) / 2)
+          $wrong = 0
+          $first = $null
+          for ($y = 0; $y -lt $ch; $y++) {
+            for ($x = 0; $x -lt $cw; $x++) {
+              $pixel = $bitmap.GetPixel([int][math]::Floor($originX + ($x + 0.5) * $scale), [int][math]::Floor($originY + ($y + 0.5) * $scale))
+              $actual = $pixel.ToArgb() -band 0xFFFFFF
+              if ($actual -ne $expected[$y * $cw + $x]) {
+                $wrong++
+                if (-not $first) { $first = 'canvas pixel ({0}, {1}) is #{2:x6}, not #{3:x6}' -f $x, $y, $actual, $expected[$y * $cw + $x] }
+              }
+            }
+          }
+          $bitmap.Dispose()
+          $verdict = if ($wrong -eq 0) { 'every one has the colour the golden frame gives it' } else { "**$wrong differ**; the first: $first" }
+          $report = @(
+            '## Screenshot'
+            ''
+            "``tour.png`` is ${width}x${height}: the ${cw}x${ch} canvas at ${scale}x from ($originX, $originY), above the status bar. Sampled at the centre of each of its $($cw * $ch) canvas pixels, $verdict (``$frame``)."
+            ''
+          )
+          $report | Out-Host
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY, $env:REPORT -Value $report
+          if ($wrong -ne 0) { throw "$wrong canvas pixels differ from the golden frame" }
+
+      - name: Open the Start-menu shortcut
+        if: ${{ !cancelled() && steps.shortcut.outputs.path != '' }}
+        timeout-minutes: 5
+        env:
+          SHORTCUT: ${{ steps.shortcut.outputs.path }}
+        run: |
+          Add-Type -AssemblyName System.Drawing, System.Windows.Forms
+          $title = 'moving-square - portable-host'
+          # As Explorer opens it: the shell resolves the link and starts the host.
+          Start-Process -FilePath $env:SHORTCUT
+          $deadline = [DateTime]::UtcNow.AddSeconds(60)
+          do {
+            Start-Sleep -Milliseconds 200
+            $game = Get-Process -Name portable-host -ErrorAction SilentlyContinue | Where-Object MainWindowTitle -eq $title | Select-Object -First 1
+          } until ($game -or [DateTime]::UtcNow -gt $deadline)
+          if (-not $game) { throw "no window titled '$title' appeared within 60 s" }
+          # Holding a handle keeps the exit code readable after the game exits.
+          $null = $game.Handle
+          Start-Sleep -Seconds 2
+          $desktop = try {
+            $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $image = [System.Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
+            $graphics = [System.Drawing.Graphics]::FromImage($image)
+            $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+            $image.Save((Join-Path $env:LOGS shortcut-desktop.png), [System.Drawing.Imaging.ImageFormat]::Png)
+            $graphics.Dispose()
+            $image.Dispose()
+            "the desktop with the window open is ``shortcut-desktop.png``"
+          } catch { "the desktop could not be captured: $($_.Exception.Message)" }
+          # Closing the window ends the game the way its title-bar button would.
+          $closed = $game.CloseMainWindow()
+          if (-not ($closed -and $game.WaitForExit(30000))) {
+            Stop-Process -Id $game.Id -Force
+            throw 'the game did not exit within 30 s of being asked to close its window'
+          }
+          $report = @(
+            '## Start-menu shortcut opened'
+            ''
+            "Opened ``$env:SHORTCUT`` with ``Start-Process``. The window ``$title`` appeared, and $desktop. Asked to close its window, the game exited with $($game.ExitCode)."
+            ''
+          )
+          $report | Out-Host
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY, $env:REPORT -Value $report
+          if ($game.ExitCode -ne 0) { throw "the game exited with $($game.ExitCode)" }
+
+      - name: Uninstall the MSI
+        id: uninstall
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          # A game left running by a failed step would keep its files in use.
+          Get-Process -Name portable-host -ErrorAction SilentlyContinue | Stop-Process -Force
+          $msi = (Get-ChildItem -LiteralPath dist -Filter *.msi)[0]
+          $log = Join-Path $env:LOGS uninstall.log
+          $msiexec = Start-Process msiexec.exe -ArgumentList "/x `"$($msi.FullName)`" /qn /l*v `"$log`"" -Wait -PassThru
+          $report = @(
+            '## Uninstall'
+            ''
+            "``msiexec /x $($msi.Name) /qn /l*v uninstall.log`` exited with $($msiexec.ExitCode)."
+            ''
+          )
+          $report | Out-Host
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY, $env:REPORT -Value $report
+          if ($msiexec.ExitCode -ne 0) { throw "msiexec /x exited with $($msiexec.ExitCode); see uninstall.log" }
+
+      - name: Check that uninstalling removed everything
+        if: ${{ !cancelled() && steps.uninstall.outcome == 'success' }}
+        env:
+          SHORTCUT: ${{ steps.shortcut.outputs.path }}
+        run: |
+          $left = @()
+          if (Test-Path -LiteralPath $env:INSTALL_DIR) {
+            $left += "$env:INSTALL_DIR, holding $(@(Get-ChildItem -LiteralPath $env:INSTALL_DIR -Recurse -Force).Count) entries"
+          }
+          if ($env:SHORTCUT) {
+            foreach ($path in $env:SHORTCUT, (Split-Path -Parent $env:SHORTCUT)) {
+              if (Test-Path -LiteralPath $path) { $left += $path }
+            }
+          }
+          $entry = Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+            Where-Object DisplayName -eq 'Portable Host'
+          if ($entry) { $left += "the uninstall entry $($entry.PSChildName)" }
+          if (Get-ItemProperty -LiteralPath 'HKCU:\Software\MICA\Portable Host' -Name StartMenuShortcut -ErrorAction SilentlyContinue) {
+            $left += 'the registry value HKCU\Software\MICA\Portable Host\StartMenuShortcut'
+          }
+          $verdict = if ($left) { "**left behind**: $($left -join '; ')" } else {
+            'removed the install directory and every file in it, the shortcut and its Start-menu folder, the uninstall entry, and the shortcut''s registry value'
+          }
+          $report = @(
+            '## After uninstalling'
+            ''
+            "Uninstalling $verdict."
+            ''
+          )
+          $report | Out-Host
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY, $env:REPORT -Value $report
+          if ($left) { throw "uninstalling left $($left -join '; ')" }
+
+      - name: Upload the logs and screenshots
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-run
+          path: logs
