@@ -1,0 +1,116 @@
+/// The portable application contract.
+///
+/// An application is a WebAssembly component that targets the `application`
+/// world below. It says *what* it wants: a logical canvas, a fixed simulation
+/// rate, and frames of drawing commands. It never says *how*: it cannot name a
+/// window system, a GPU API, a clock, a file, or a socket. A native host
+/// supplies all of those.
+///
+/// Versioning: the package version is the contract version. While it is 0.x,
+/// a minor bump may break compatibility, and hosts match it exactly.
+package portable:platform@0.1.0;
+
+/// Plain data exchanged across the boundary. No functions, no resources.
+interface types {
+    /// Directional controls held down during a tick.
+    flags buttons {
+        up,
+        down,
+        left,
+        right,
+    }
+
+    /// What the host observed from the user during one tick.
+    record input {
+        held: buttons,
+    }
+
+    /// A width and height in logical canvas pixels.
+    record size {
+        width: u32,
+        height: u32,
+    }
+
+    /// An opaque sRGB color.
+    record color {
+        r: u8,
+        g: u8,
+        b: u8,
+    }
+
+    /// An axis-aligned rectangle in logical canvas pixels. The origin is the
+    /// canvas's top-left corner and y grows downward.
+    record rect {
+        x: s32,
+        y: s32,
+        width: u32,
+        height: u32,
+    }
+
+    /// A rectangle and the color to fill it with.
+    record filled-rect {
+        rect: rect,
+        color: color,
+    }
+
+    /// One drawing instruction. A frame is a list of these, applied in order
+    /// to the logical canvas; nothing carries over from one frame to the next.
+    variant draw-command {
+        /// Fill the entire canvas.
+        clear(color),
+        /// Fill a rectangle, clipped to the canvas.
+        fill-rect(filled-rect),
+    }
+
+    /// Facts the application declares about itself before it runs.
+    record app-info {
+        /// Human-readable name for window titles and logs.
+        name: string,
+        /// The logical canvas the application draws into. Hosts scale it to
+        /// the physical display; the application never sees device pixels.
+        canvas: size,
+        /// How many times `update` runs per simulated second.
+        ticks-per-second: u32,
+    }
+}
+
+/// Diagnostics the host offers the application. Output only: nothing the
+/// application writes here can influence its simulation.
+interface log {
+    enum level {
+        debug,
+        info,
+        warn,
+        error,
+    }
+
+    /// Append a message to the host's log.
+    write: func(level: level, message: string);
+}
+
+/// What the application implements. The host calls these functions; the
+/// application keeps its own state between calls.
+interface app {
+    use types.{app-info, input, draw-command};
+
+    /// Describe the application. Called once, before the first `update`.
+    info: func() -> app-info;
+
+    /// Advance the simulation by exactly one fixed tick, given the input held
+    /// during that tick.
+    update: func(input: input);
+
+    /// Describe the current state as one frame of drawing commands. Must not
+    /// change simulation state: a host may call it any number of times between
+    /// updates, including not at all.
+    render: func() -> list<draw-command>;
+}
+
+/// A portable interactive application.
+///
+/// Its imports are the complete authority it can exercise. A host refuses a
+/// component that imports anything else.
+world application {
+    import log;
+    export app;
+}

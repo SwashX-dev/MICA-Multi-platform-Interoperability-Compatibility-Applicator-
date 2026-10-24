@@ -1,0 +1,6 @@
+# Visit all four corners; every edge clamps.
+ticks 530
+0 up left        # top-left corner (0, 0) by tick 75
+120 right        # top-right corner (304, 0)
+280 down         # bottom-right corner (304, 164)
+370 left         # bottom-left corner (0, 164)

@@ -1,0 +1,12 @@
+# `cargo test` and `cargo run` find the guest component here (built by
+# `just guest`) unless PORTABLE_GUEST is already set; the Nix checks set it to
+# the reproducibly built component.
+[env]
+PORTABLE_GUEST = { value = "target/component/moving-square.wasm", relative = true }
+
+# rustc links aarch64-unknown-linux-gnu with its bundled lld by default. Use the
+# C toolchain's GNU linker instead: lld rejects a library search path that
+# holds another architecture's libraries (a host-wide `-L/usr/lib` in
+# NIX_CFLAGS_LINK, for example), where GNU ld skips the incompatible files.
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=bfd"]

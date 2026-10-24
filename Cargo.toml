@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = ["crates/host", "examples/moving-square"]
+default-members = ["crates/host"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.99"
+license = "BSD-3-Clause"
+repository = "https://github.com/SwashX-dev/MICA-Multi-platform-Interoperability-Compatibility-Applicator-"
+publish = false
+
+# Application components build with `--profile guest`: small, and a panic is a
+# trap rather than an unwind.
+[profile.guest]
+inherits = "release"
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"

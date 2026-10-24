@@ -1,0 +1,8 @@
+# One pinned toolchain for every build: the native host, the ARM64 cross host,
+# and the wasm32 guest. Nix reads this file through rust-overlay; rustup users
+# get the same toolchain automatically.
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown", "aarch64-unknown-linux-gnu"]

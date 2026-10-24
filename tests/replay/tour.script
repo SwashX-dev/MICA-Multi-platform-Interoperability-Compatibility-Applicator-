@@ -1,0 +1,9 @@
+# A tour of every kind of input. The square starts at (152, 82) on a 320x180
+# canvas, is 16x16, and moves 2 logical pixels per tick along each held axis.
+ticks 300
+0 right          # reaches the right edge (x 304) at tick 75, then stays clamped
+90 down          # reaches the bottom edge (y 164) at tick 130
+150 up left      # diagonal; reaches the top edge at tick 231, keeps moving left
+250 -            # idle: nothing moves
+270 left right down   # left and right cancel; only down applies
+290 up down left right # everything cancels
