@@ -5,6 +5,9 @@
 #
 #     xvfb-run -a nu tests/keyboard.nu PORTABLE_HOST COMPONENT OUT_DIR
 #
+# PORTABLE_HOST is the command that runs portable-host, for example
+# `target/release/portable-host` or `wine result/bin/portable-host.exe`.
+#
 # It plays the game with real X key events from xdotool: hold Right, then
 # Down; pause with P; hold Left while stepping three ticks with N; resume with
 # Esc; quit with Q. It then checks the input the host recorded and that the
@@ -14,21 +17,36 @@ def fail [message: string] {
     error make --unspanned {msg: $"keyboard test: ($message)"}
 }
 
-def main [host: path, component: path, out: path] {
+# Give the keyboard to the visible window with this exact title, waiting up to
+# `seconds` for it. Wine may replace a window's X window while it starts, so
+# the window is looked up again until focusing it succeeds.
+def focus-window [title: string, seconds: int] {
+    for _ in 1..($seconds * 10) {
+        let ids = (^xdotool search --onlyvisible --name $'^($title)$' | complete | get stdout | lines | where $it != '')
+        if not ($ids | is-empty) {
+            if (^timeout 10 xdotool windowfocus --sync ($ids | first) | complete).exit_code == 0 { return }
+        }
+        sleep 100ms
+    }
+    fail $"cannot focus a window titled `($title)` within ($seconds) s"
+}
+
+def main [host: string, component: path, out: path] {
     mkdir $out
+    let command = ($host | split row ' ' | where $it != '')
     let record = ($out | path join keyboard.script)
     let shot = ($out | path join keyboard.png)
     let result = ($out | path join play.nuon)
     rm -f $record $shot $result
 
     let game = job spawn {
-        with-env {SDL_VIDEO_DRIVER: x11} {
-            ^$host play $component --record $record --screenshot $shot | complete
-        } | to nuon | save -f $result
+        # Leave SDL (or Wine) nothing to choose but the virtual X server.
+        hide-env -i WAYLAND_DISPLAY SDL_VIDEO_DRIVER
+        ^($command.0) ...($command | skip 1) play $component --record $record --screenshot $shot
+        | complete | to nuon | save -f $result
     }
 
-    let window = (^xdotool search --sync --name 'moving-square - portable-host' | lines | first)
-    ^xdotool windowfocus --sync $window
+    focus-window 'moving-square - portable-host' 60
     sleep 500ms
 
     ^xdotool keydown Right

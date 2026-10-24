@@ -12,9 +12,11 @@ WebAssembly component. That exact file runs:
 - **headless**, from a script, producing a deterministic trace of every frame
   (`portable-host replay`),
 
-on **x86-64** and on **ARM64** hosts. The ARM64 host has so far run only under
-QEMU user-mode emulation; [docs/VALIDATION.md](docs/VALIDATION.md) records
-exactly what was executed where.
+on **Linux x86-64**, **Linux ARM64**, and **Windows x86-64** hosts, and it
+installs on Windows from an `.msi`. The ARM64 host has so far run only under
+QEMU user-mode emulation, and the Windows host only under Wine on Linux, never
+on Windows itself; [docs/VALIDATION.md](docs/VALIDATION.md) records exactly
+what was executed where.
 
 ## Quick start
 
@@ -35,8 +37,8 @@ just play
 ```
 
 Without entering the shell, `nix run .` plays the game and `nix flake check`
-builds and tests everything, including the ARM64 host under QEMU. Run `just`
-to list every command.
+builds and tests everything, including the ARM64 host under QEMU and the
+Windows host and its installer under Wine. Run `just` to list every command.
 
 ### Keys
 
@@ -79,8 +81,45 @@ Nix outputs:
 | `packages.<system>.guest` | The component, built reproducibly: `result/moving-square.wasm` |
 | `packages.<system>.host` | The native host with the SDL3 backend; its build runs the full test suite |
 | `packages.x86_64-linux.host-aarch64` | The headless host cross-compiled for ARM64 |
-| `packages.x86_64-linux.cross-arch-report` | Both hosts replay every script; traces must be byte-identical (`result/report.md`) |
-| `checks.<system>.*` | The above plus guest logic tests, clippy, the keyboard test, and the ARM64 test suite under QEMU |
+| `packages.x86_64-linux.host-windows` | The Windows x86-64 host with the SDL3 backend, cross-compiled with MinGW-w64: `result/bin/portable-host.exe` and `SDL3.dll` |
+| `packages.x86_64-linux.msi` | The Windows installer, `result/portable-host-0.1.0-x64.msi` (unsigned) |
+| `packages.x86_64-linux.cross-arch-report` | The Linux x86-64, Linux ARM64 (QEMU), and Windows (Wine) hosts replay every script; traces must be byte-identical (`result/report.md`) |
+| `packages.x86_64-linux.windows-play-report` | The Linux and Windows (Wine) hosts play the tour script in a window; both must end on its golden frame and draw identical pixels (`result/report.md`, screenshots) |
+| `packages.x86_64-linux.msi-install-report` | Installs the MSI under Wine, replays with the installed files, opens the Start-menu shortcut, and uninstalls (`result/report.md`) |
+| `checks.<system>.*` | The above plus guest logic tests, clippy, the keyboard test (on Linux, and on Windows under Wine), the ARM64 test suite under QEMU, and the Windows test suite under Wine |
+
+## Windows
+
+`nix build .#msi` builds an installer for 64-bit Windows 10 and 11,
+`result/portable-host-0.1.0-x64.msi`. It installs `portable-host.exe`, the
+`SDL3.dll` it loads, and the moving-square component into
+`C:\Program Files\Portable Host`, and adds **Portable Host › Moving Square** to
+the Start menu, which opens the game in a window. Double-click the `.msi` to
+install it, or run, from an administrator command prompt:
+
+```text
+msiexec /i portable-host-0.1.0-x64.msi
+```
+
+The installer is **not signed**. Downloaded from the internet, it is likely to
+be stopped by SmartScreen with "Windows protected your PC": choose *More
+info*, then *Run anyway*. The administrator prompt that follows names an
+unknown publisher. Uninstall from *Settings › Apps* or with `msiexec /x`.
+Installing a newer version replaces the older one.
+
+The Start-menu shortcut also opens a console window, which shows what the
+host prints and closes with the game. From a command prompt, the installed host
+takes the same commands as on Linux:
+
+```text
+"C:\Program Files\Portable Host\portable-host.exe" inspect "C:\Program Files\Portable Host\moving-square.wasm"
+```
+
+`nix build .#host-windows` gives the same two files without an installer, to
+copy anywhere; `portable-host.exe` looks for `SDL3.dll` beside it. Apart from
+each other, the two need only DLLs that ship with Windows. Both are
+cross-compiled on Linux and have so far run only under Wine 11 on Linux, not
+on Windows itself.
 
 ## Layout
 
@@ -100,6 +139,9 @@ crates/host/                portable-host
 tests/replay/               input scripts and their golden traces
 tests/keyboard.nu           end-to-end keyboard test (Xvfb + xdotool)
 tests/cross-arch.nu         compares hosts on every script
+tests/play-compare.nu       compares hosts' windows, pixel for pixel
+tests/wine-msi.nu           installs, uses, and removes the MSI under Wine
+packaging/windows/          the MSI definition (WiX, built by wixl)
 docs/ARCHITECTURE.md        boundaries, contract design, tradeoffs
 docs/VALIDATION.md          what was executed, on what, with which results
 ```
@@ -141,8 +183,10 @@ shows why.
 See [docs/VALIDATION.md](docs/VALIDATION.md) for exactly what was built and
 run, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and its
 known limits. In short: the contract, the component, both backends, the
-headless replays, and the ARM64 host all work; ARM64 has been exercised only
-under QEMU, and the ARM64 host has no graphical backend yet.
+headless replays, the ARM64 host, the Windows host, and its installer all
+work. ARM64 has been exercised only under QEMU, and the ARM64 host has no
+graphical backend yet. Windows has been exercised only under Wine on Linux,
+and the installer is unsigned.
 
 ### Working with JJ
 

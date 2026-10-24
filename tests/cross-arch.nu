@@ -4,8 +4,9 @@
 #     nu tests/cross-arch.nu COMPONENT REPLAY_DIR OUT_DIR HOST...
 #
 # Each HOST is `label=command`, where the command runs a portable-host binary,
-# for example `x86_64=result/bin/portable-host` or
-# `aarch64=qemu-aarch64 result-aarch64/bin/portable-host`. Every host must
+# for example `x86_64=result/bin/portable-host`,
+# `aarch64=qemu-aarch64 result-aarch64/bin/portable-host`, or
+# `windows=wine result-windows/bin/portable-host.exe`. Every host must
 # reproduce every golden trace exactly. The evidence goes to OUT_DIR/report.md.
 
 def fail [message: string] {
@@ -59,14 +60,21 @@ def main [component: path, replay_dir: path, out: path, ...hosts: string] {
 
     let host_rows = ($hosts | each {|host|
         let runs_as = ($runs | where host == $host.label | first | get runs_as)
-        let emulated = if ($host.command.0 | path basename) =~ '^qemu-' { 'QEMU user-mode emulation' } else { 'natively' }
-        $"| ($host.label) | `($runs_as)` | ($emulated) | `($host.command | str join ' ')` |"
+        let program = ($host.command.0 | path basename)
+        let executed = if $program =~ '^qemu-' {
+            'QEMU user-mode emulation'
+        } else if $program =~ '^wine' {
+            'Wine (the Windows API on Linux), not Windows'
+        } else {
+            'natively'
+        }
+        $"| ($host.label) | `($runs_as)` | ($executed) | `($host.command | str join ' ')` |"
     })
     let script_rows = ($per_script | each {|row|
         $"| ($row.script) | ($row.ticks) | `($row.trace_sha256)` | identical on ($hosts | length) hosts and to the golden trace |"
     })
     let report = ([
-        "# Cross-architecture replay report"
+        "# Cross-platform replay report"
         ""
         $"Component: `($component)`"
         ""

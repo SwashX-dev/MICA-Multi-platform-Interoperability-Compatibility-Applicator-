@@ -18,7 +18,8 @@ caring. The moving square is only the instrument for testing that.
  └──────────────────────────────┘            │ sdl.rs       keyboard ──▶ window       │
    wasm32, no WASI, no SDL, no OS            │ pacer.rs     real time ──▶ whole ticks │
                                              └────────────────────────────────────────┘
-                                               native: x86-64, ARM64 (headless)
+                                               native: Linux x86-64, Linux ARM64
+                                               (headless), Windows x86-64
 ```
 
 **Portable application** (`examples/moving-square`). Owns its state, its
@@ -101,8 +102,8 @@ linker rather than any custom security machinery:
 - `Pacer` turns elapsed time into whole ticks with exact rational arithmetic,
   so the clock decides only *when* ticks run, never *what* they compute.
 - Replays produce a text trace, one line per tick, whose SHA-256 is the
-  fingerprint compared across runs, hosts, and CPU architectures. Golden traces
-  live in `tests/replay`.
+  fingerprint compared across runs, hosts, operating systems, and CPU
+  architectures. Golden traces live in `tests/replay`.
 - Every graphical session records its input, replays it headlessly in a fresh
   instance on exit, and fails loudly if the two runs end on different frames.
 
@@ -125,6 +126,10 @@ before.
   cache (373 derivations to build), so the cross host is built without the
   graphical backend. A native ARM64 machine builds the full host from
   `packages.aarch64-linux.host`.
+- **Windows through MinGW.** The Windows host is cross-compiled from Linux for
+  `x86_64-pc-windows-gnu` (MinGW-w64), not built with MSVC, and ships SDL3 as a
+  DLL beside it. The same host code runs there unchanged; `std::env::consts`
+  is the only place it learns the OS, to print it.
 - **Level-triggered input** sampled once per rendered frame can miss very short
   taps.
 - **Status-bar text** uses SDL's built-in 8x8 debug font: ASCII only.

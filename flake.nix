@@ -161,7 +161,159 @@
             }
           );
 
-          # Both hosts replay every script with the same component file and
+          # The Windows x86-64 host, cross-compiled from Linux with MinGW-w64.
+          # It keeps the SDL3 backend: nixpkgs builds SDL3 for MinGW.
+          winPkgs = import nixpkgs {
+            localSystem = pkgs.stdenv.hostPlatform.system;
+            crossSystem = lib.systems.examples.mingwW64;
+            inherit overlays;
+          };
+          winCraneLib = (crane.mkLib winPkgs).overrideToolchain toolchainFor;
+          winSdl3 = winPkgs.sdl3;
+          # SDL3.dll; the import library the linker uses is in another output.
+          winSdl3Dlls = "${lib.getBin winSdl3}/bin";
+          winArgs = common // {
+            pname = "portable-host";
+            cargoExtraArgs = "--locked -p portable-host";
+            buildInputs = [ winSdl3 ];
+            PORTABLE_GUEST = guestFile;
+          };
+          winDeps = winCraneLib.buildDepsOnly winArgs;
+          # portable-host.exe with the DLLs it loads beside it, the first place
+          # Windows looks for them.
+          hostWindows = winCraneLib.buildPackage (
+            winArgs
+            // {
+              cargoArtifacts = winDeps;
+              doCheck = false;
+              postInstall = ''
+                cp ${winSdl3Dlls}/SDL3.dll $out/bin/
+              '';
+            }
+          );
+
+          # Wine 11 in WoW64 mode runs every Windows binary below; nixpkgs
+          # would otherwise pick its minimal wine64 build. Each derivation
+          # creates a fresh prefix, without Mono, Gecko, or desktop menu
+          # entries.
+          wine = pkgs.wineWow64Packages.stable;
+          wineSetup = ''
+            export HOME=$TMPDIR WINEPREFIX=$TMPDIR/wine WINEDEBUG=-all
+            export WINEDLLOVERRIDES='mscoree,mshtml,winemenubuilder.exe=d'
+            # Quiet Wine's probes for system fonts (it brings its own) and for
+            # Wayland (its windows go to Xvfb).
+            export FONTCONFIG_FILE=${pkgs.makeFontsConf { fontDirectories = [ ]; }}
+            export XDG_RUNTIME_DIR=$TMPDIR/xdg-runtime
+            mkdir -m 700 $XDG_RUNTIME_DIR
+            ${wine}/bin/wineboot --init
+            ${wine}/bin/wineserver --wait
+          '';
+          # The Windows test suite, golden replays included, run under Wine as
+          # this derivation's build, like the ARM64 suite under QEMU.
+          hostWindowsTests = winCraneLib.mkCargoDerivation (
+            winArgs
+            // {
+              pname = "portable-host-windows-tests";
+              cargoArtifacts = winDeps;
+              CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER = "${wine}/bin/wine";
+              # The test binaries in target/ find SDL3.dll on Wine's PATH.
+              preBuild = wineSetup + ''
+                export WINEPATH="$(${wine}/bin/winepath --windows ${winSdl3Dlls})"
+              '';
+              # Given a terminal, Wine redraws console output for it, and some
+              # builders' terminals lost the text. Through a pipe the tests'
+              # output reaches the log unchanged; stdenv's pipefail keeps a
+              # failure a failure.
+              buildPhaseCargoCommand = "cargoWithProfile test ${winArgs.cargoExtraArgs} 2>&1 | cat";
+              doInstallCargoArtifacts = false;
+            }
+          );
+
+          # The Windows host's graphical backend under Wine, beside the Linux
+          # host, on a private Xvfb display: both play the tour script in a
+          # window, must end on its golden frame, and must draw the same pixels.
+          windowsPlay =
+            pkgs.runCommand "portable-host-windows-play"
+              {
+                nativeBuildInputs = [
+                  pkgs.nushell
+                  pkgs.xvfb-run
+                  pkgs.imagemagick
+                  wine
+                ];
+              }
+              ''
+                ${wineSetup}
+                xvfb-run -a -s '-screen 0 1280x1024x24' nu ${./tests/play-compare.nu} \
+                  ${guestFile} ${./tests/replay}/tour.script $out \
+                  "linux=${host}/bin/portable-host" \
+                  "windows=wine ${hostWindows}/bin/portable-host.exe"
+              '';
+
+          # The keyboard test again, with the Windows host under Wine.
+          windowsKeyboard =
+            pkgs.runCommand "portable-host-windows-keyboard-test"
+              {
+                nativeBuildInputs = [
+                  pkgs.nushell
+                  pkgs.xvfb-run
+                  pkgs.xdotool
+                  wine
+                ];
+              }
+              ''
+                ${wineSetup}
+                xvfb-run -a -s '-screen 0 1280x1024x24' nu ${./tests/keyboard.nu} \
+                  "wine ${hostWindows}/bin/portable-host.exe" ${guestFile} $out
+              '';
+
+          # The Windows installer, built on Linux with wixl (msitools): the
+          # host, the DLLs it loads, and the moving-square component under
+          # Program Files, and a Start-menu shortcut that plays it. Each
+          # version gets its own product code, derived from the version, so a
+          # newer MSI replaces an older installation.
+          productCode =
+            let
+              hash = builtins.hashString "sha256" "portable-host ${common.version} x64";
+              part = start: length: builtins.substring start length hash;
+            in
+            lib.toUpper "${part 0 8}-${part 8 4}-5${part 13 3}-8${part 17 3}-${part 20 12}";
+          msiName = "portable-host-${common.version}-x64.msi";
+          msi =
+            pkgs.runCommand "portable-host-msi"
+              {
+                nativeBuildInputs = [ pkgs.msitools ];
+              }
+              ''
+                mkdir $out
+                wixl --verbose --arch x64 \
+                  -D Version=${common.version} \
+                  -D ProductCode=${productCode} \
+                  -D HostDir=${hostWindows}/bin \
+                  -D Component=${guestFile} \
+                  -D License=${./LICENSE} \
+                  -o $out/${msiName} ${./packaging/windows/portable-host.wxs}
+              '';
+          # Install the MSI under Wine, replay with what it installed, open the
+          # Start-menu shortcut, and uninstall.
+          msiInstall =
+            pkgs.runCommand "portable-host-msi-install"
+              {
+                nativeBuildInputs = [
+                  pkgs.nushell
+                  pkgs.xvfb-run
+                  pkgs.xdotool
+                  pkgs.imagemagick
+                  wine
+                ];
+              }
+              ''
+                ${wineSetup}
+                xvfb-run -a -s '-screen 0 1280x1024x24' nu ${./tests/wine-msi.nu} \
+                  ${msi}/${msiName} ${hostWindows}/bin ${guestFile} ${./tests/replay} $out
+              '';
+
+          # Every host replays every script with the same component file and
           # must produce byte-identical traces.
           crossArch =
             pkgs.runCommand "portable-host-cross-arch"
@@ -169,13 +321,15 @@
                 nativeBuildInputs = [
                   pkgs.nushell
                   pkgs.qemu-user
+                  wine
                 ];
               }
               ''
-                export HOME=$TMPDIR
+                ${wineSetup}
                 nu ${./tests/cross-arch.nu} ${guestFile} ${./tests/replay} $out \
                   "x86_64=${host}/bin/portable-host" \
-                  "aarch64=qemu-aarch64 ${hostAarch64}/bin/portable-host"
+                  "aarch64=qemu-aarch64 ${hostAarch64}/bin/portable-host" \
+                  "windows=wine ${hostWindows}/bin/portable-host.exe"
               '';
 
           isX86 = pkgs.stdenv.hostPlatform.isx86_64;
@@ -186,8 +340,12 @@
             default = host;
           }
           // lib.optionalAttrs isX86 {
+            inherit msi;
             host-aarch64 = hostAarch64;
+            host-windows = hostWindows;
             cross-arch-report = crossArch;
+            windows-play-report = windowsPlay;
+            msi-install-report = msiInstall;
           };
 
           checks = {
@@ -200,7 +358,17 @@
               ;
           }
           // lib.optionalAttrs isX86 {
-            inherit hostAarch64 hostAarch64Tests crossArch;
+            inherit
+              hostAarch64
+              hostAarch64Tests
+              hostWindows
+              hostWindowsTests
+              windowsPlay
+              windowsKeyboard
+              msi
+              msiInstall
+              crossArch
+              ;
           };
 
           apps.default = {

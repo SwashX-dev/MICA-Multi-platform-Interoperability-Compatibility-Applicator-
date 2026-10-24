@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Windows installer for Portable Host, built on Linux by wixl (msitools), which
+  reads this WiX 3 subset. The Nix flake builds it (`nix build .#msi`):
+
+      wixl -a x64 -D Version=V -D ProductCode=GUID -D HostDir=DIR \
+           -D Component=FILE -D License=FILE -o portable-host.msi portable-host.wxs
+
+  HostDir holds portable-host.exe and every DLL it loads. Each version gets its
+  own ProductCode, so installing a newer version replaces the older one; the
+  UpgradeCode below must never change.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="$(var.ProductCode)"
+           Name="Portable Host"
+           Version="$(var.Version)"
+           Manufacturer="MICA"
+           Language="1033"
+           Codepage="1252"
+           UpgradeCode="914613E3-F435-4468-ABF3-BE298A3885C7">
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Manufacturer="MICA"
+             Description="Portable Host $(var.Version) with the moving-square application"
+             Comments="Runs portable:platform@0.1.0 application components" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Property Id="ARPURLINFOABOUT"
+              Value="https://github.com/SwashX-dev/MICA-Multi-platform-Interoperability-Compatibility-Applicator-" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <!-- C:\Program Files\Portable Host -->
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="Portable Host">
+          <Component Id="Host" Guid="*">
+            <File Id="PortableHostExe" Name="portable-host.exe"
+                  Source="$(var.HostDir)/portable-host.exe" KeyPath="yes" />
+          </Component>
+          <Component Id="Sdl3" Guid="*">
+            <File Id="Sdl3Dll" Name="SDL3.dll" Source="$(var.HostDir)/SDL3.dll" KeyPath="yes" />
+          </Component>
+          <Component Id="MovingSquare" Guid="*">
+            <File Id="MovingSquareWasm" Name="moving-square.wasm" Source="$(var.Component)"
+                  KeyPath="yes" />
+          </Component>
+          <Component Id="License" Guid="*">
+            <File Id="LicenseTxt" Name="LICENSE.txt" Source="$(var.License)" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+
+      <!-- Start menu: Portable Host > Moving Square plays the bundled component. -->
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ProgramMenuDir" Name="Portable Host">
+          <Component Id="StartMenuShortcut" Guid="*">
+            <Shortcut Id="PlayMovingSquare"
+                      Name="Moving Square"
+                      Description="Play moving-square in Portable Host"
+                      Target="[INSTALLDIR]portable-host.exe"
+                      Arguments="play &quot;[INSTALLDIR]moving-square.wasm&quot;"
+                      WorkingDirectory="INSTALLDIR"
+                      Advertise="no" />
+            <RemoveFolder Id="RemoveProgramMenuDir" On="uninstall" />
+            <!-- A shortcut is not a file Windows Installer can track, so this
+                 value is the component's key path. -->
+            <RegistryValue Root="HKCU" Key="Software\MICA\Portable Host"
+                           Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Feature Id="Complete" Title="Portable Host" Level="1">
+      <ComponentRef Id="Host" />
+      <ComponentRef Id="Sdl3" />
+      <ComponentRef Id="MovingSquare" />
+      <ComponentRef Id="License" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Product>
+</Wix>
