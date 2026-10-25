@@ -35,7 +35,11 @@ pub(crate) fn probe(context: &Context, profile: &mut HostProfile, depth: Depth) 
         x86.then(|| flags.contains(&"vmx") || flags.contains(&"svm"));
     let hypervisor_flag = flags.contains(&"hypervisor");
 
-    let kernel = profile.kernel.clone().unwrap_or_default().to_ascii_lowercase();
+    let kernel = profile
+        .kernel
+        .clone()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
     profile.virtualization.wsl =
         kernel.contains("microsoft") || context.env("WSL_DISTRO_NAME").is_some();
     profile.virtualization.kvm = context.exists("/dev/kvm");
@@ -57,7 +61,9 @@ pub(crate) fn probe(context: &Context, profile: &mut HostProfile, depth: Depth) 
     profile.immutable = immutable(context, distro.as_ref());
     if depth == Depth::Full {
         profile.security = security::probe_linux(context);
-        profile.unknowns.extend(profile.security.needs_privilege.iter().cloned());
+        profile
+            .unknowns
+            .extend(profile.security.needs_privilege.iter().cloned());
     }
     profile.distro = distro;
 }
@@ -148,12 +154,16 @@ fn gpus(context: &Context) -> Vec<Gpu> {
             .read(&format!("{base}/vendor"))
             .and_then(|value| u16::from_str_radix(value.trim_start_matches("0x"), 16).ok());
         let device_id = context.read(&format!("{base}/device")).unwrap_or_default();
-        let vendor = vendor_id.map(GpuVendor::from_pci).unwrap_or(GpuVendor::Other);
+        let vendor = vendor_id
+            .map(GpuVendor::from_pci)
+            .unwrap_or(GpuVendor::Other);
         let driver = context.link_name(&format!("{base}/driver"));
         let location = context.link_name(&base);
         let name = format!(
             "{vendor:?} GPU {}:{}",
-            vendor_id.map(|id| format!("{id:04x}")).unwrap_or_else(|| "????".into()),
+            vendor_id
+                .map(|id| format!("{id:04x}"))
+                .unwrap_or_else(|| "????".into()),
             device_id.trim_start_matches("0x")
         );
         gpus.push(Gpu {
@@ -257,7 +267,8 @@ mod tests {
 
     impl Tree {
         fn new(name: &str) -> Tree {
-            let root = std::env::temp_dir().join(format!("mica-probe-{name}-{}", std::process::id()));
+            let root =
+                std::env::temp_dir().join(format!("mica-probe-{name}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&root);
             std::fs::create_dir_all(&root).unwrap();
             Tree(root)
@@ -341,7 +352,10 @@ mod tests {
         .file("/usr/lib64/libvulkan.so.1", "")
         .file("/usr/share/vulkan/icd.d/radeon_icd.x86_64.json", "{}")
         .dir("/run/systemd/system")
-        .file("/sys/class/dmi/id/sys_vendor", "Micro-Star International Co., Ltd.\n")
+        .file(
+            "/sys/class/dmi/id/sys_vendor",
+            "Micro-Star International Co., Ltd.\n",
+        )
         .file("/sys/class/dmi/id/chassis_type", "3\n")
         .file("/usr/bin/dnf", "")
         .file("/usr/bin/flatpak", "");
@@ -388,7 +402,10 @@ mod tests {
         assert_eq!(security.setup_mode, Some(false));
         assert_eq!(security.tpm_version, Some(2));
         assert!(security.event_log_present);
-        assert!(!security.event_log_readable, "an empty read counts as unreadable");
+        assert!(
+            !security.event_log_readable,
+            "an empty read counts as unreadable"
+        );
         assert_eq!(security.lockdown.as_deref(), Some("integrity"));
         assert!(security.lsms.as_ref().unwrap().contains(&"bpf".to_string()));
         assert_eq!(security.kexec_load_disabled, Some(true));
@@ -401,10 +418,13 @@ mod tests {
     #[test]
     fn probes_a_steam_deck_and_wsl() {
         let deck = Tree::new("deck");
-        deck.file("/etc/os-release", "ID=steamos\nID_LIKE=arch\nNAME=SteamOS\n")
-            .file("/sys/class/dmi/id/board_vendor", "Valve\n")
-            .file("/sys/class/dmi/id/product_name", "Jupiter\n")
-            .file("/usr/bin/pacman", "");
+        deck.file(
+            "/etc/os-release",
+            "ID=steamos\nID_LIKE=arch\nNAME=SteamOS\n",
+        )
+        .file("/sys/class/dmi/id/board_vendor", "Valve\n")
+        .file("/sys/class/dmi/id/product_name", "Jupiter\n")
+        .file("/usr/bin/pacman", "");
         let profile = probe_with(&context(&deck), Os::Linux);
         assert!(profile.device.steam_deck);
         assert!(profile.device.handheld);

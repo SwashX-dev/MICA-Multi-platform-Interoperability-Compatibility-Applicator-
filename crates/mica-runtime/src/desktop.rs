@@ -22,7 +22,10 @@ pub const MIME_TYPES: &[&str] = &[
 ];
 
 pub fn entry_contents(mica: &Path) -> String {
-    let exec = mica.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"");
+    let exec = mica
+        .to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
     format!(
         "[Desktop Entry]\n\
          # Created by MICA (mica desktop install); `mica desktop remove` deletes it.\n\
@@ -107,7 +110,11 @@ mod tests {
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.contains("Exec=\"/home/u/.local/bin/mica\" open %f"));
         assert!(text.contains("MimeType=application/x-ms-dos-executable;"));
-        record_defaults(&state, &[("application/x-msi".into(), "wine.desktop".into())]).unwrap();
+        record_defaults(
+            &state,
+            &[("application/x-msi".into(), "wine.desktop".into())],
+        )
+        .unwrap();
         assert_eq!(
             recorded_defaults(&state),
             vec![("application/x-msi".to_string(), "wine.desktop".to_string())]

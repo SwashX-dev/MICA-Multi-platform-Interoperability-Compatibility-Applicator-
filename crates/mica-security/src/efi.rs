@@ -110,8 +110,14 @@ pub(crate) mod tests {
     #[test]
     fn reads_certificates_and_hashes() {
         let mut db = x509_list(&certificate(
-            ("Microsoft Corporation UEFI CA 2011", "Microsoft Corporation"),
-            ("Microsoft Corporation Third Party Marketplace Root", "Microsoft Corporation"),
+            (
+                "Microsoft Corporation UEFI CA 2011",
+                "Microsoft Corporation",
+            ),
+            (
+                "Microsoft Corporation Third Party Marketplace Root",
+                "Microsoft Corporation",
+            ),
         ));
         db.extend(sha256_list(3));
         db.extend(x509_list(&certificate(
@@ -120,12 +126,21 @@ pub(crate) mod tests {
         )));
         let entries = parse_signature_lists(&db);
         assert_eq!(entries.len(), 5);
-        assert_eq!(entries.iter().filter(|entry| **entry == Entry::Sha256).count(), 3);
+        assert_eq!(
+            entries
+                .iter()
+                .filter(|entry| **entry == Entry::Sha256)
+                .count(),
+            3
+        );
         let names: Vec<String> = certificates(&db)
             .into_iter()
             .map(|certificate| certificate.subject.common_name.unwrap())
             .collect();
-        assert_eq!(names, vec!["Microsoft Corporation UEFI CA 2011", "My Own Key"]);
+        assert_eq!(
+            names,
+            vec!["Microsoft Corporation UEFI CA 2011", "My Own Key"]
+        );
     }
 
     #[test]

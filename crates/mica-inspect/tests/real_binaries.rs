@@ -28,15 +28,23 @@ fn windows_system_binaries() {
     println!("{}: {:?}", notepad.display(), report.format);
     assert_eq!(report.platform, Platform::Windows);
     assert_eq!(report.kind, Kind::Application);
-    assert!(report.libraries.iter().any(|library| library.contains("kernel32")
-        || library.starts_with("api-ms-win")));
+    assert!(
+        report
+            .libraries
+            .iter()
+            .any(|library| library.contains("kernel32") || library.starts_with("api-ms-win"))
+    );
 
     let d3d11 = Path::new(&root).join(r"System32\d3d11.dll");
     if d3d11.is_file() {
         let report = inspect_path(&d3d11).unwrap();
         assert_eq!(report.kind, Kind::Library);
-        assert!(report.libraries.iter().any(|library| library == "dxgi.dll"
-            || library.starts_with("api-ms-win")));
+        assert!(
+            report
+                .libraries
+                .iter()
+                .any(|library| library == "dxgi.dll" || library.starts_with("api-ms-win"))
+        );
     }
 }
 
@@ -48,7 +56,12 @@ fn linux_system_binaries() {
     };
     let path = shell.canonicalize().unwrap();
     let report = inspect_path(&path).unwrap();
-    println!("{}: {:?} {:?}", path.display(), report.format, report.libraries);
+    println!(
+        "{}: {:?} {:?}",
+        path.display(),
+        report.format,
+        report.libraries
+    );
     assert_eq!(report.platform, Platform::Linux);
     assert_eq!(report.kind, Kind::Application);
     assert_eq!(report.architectures, vec![Arch::host()]);
@@ -56,7 +69,12 @@ fn linux_system_binaries() {
         Format::Elf(details) => {
             if !details.statically_linked {
                 assert!(details.interpreter.is_some());
-                assert!(report.libraries.iter().any(|library| library.starts_with("libc")));
+                assert!(
+                    report
+                        .libraries
+                        .iter()
+                        .any(|library| library.starts_with("libc"))
+                );
             }
         }
         other => panic!("{other:?}"),
@@ -149,5 +167,8 @@ fn corrupted_inputs_never_panic() {
             runs += 1;
         }
     }
-    println!("{runs} corrupted inputs inspected from {} seeds", seeds.len());
+    println!(
+        "{runs} corrupted inputs inspected from {} seeds",
+        seeds.len()
+    );
 }

@@ -705,7 +705,7 @@ dependencies = [
 
 [[package]]
 name = "mica-cli"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -721,7 +721,7 @@ dependencies = [
 
 [[package]]
 name = "mica-compat"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "mica-inspect",
  "serde",
@@ -730,7 +730,7 @@ dependencies = [
 
 [[package]]
 name = "mica-engine"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "mica-compat",
  "mica-inspect",
@@ -742,7 +742,7 @@ dependencies = [
 
 [[package]]
 name = "mica-inspect"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "serde",
  "sha2 0.11.1",
@@ -750,7 +750,7 @@ dependencies = [
 
 [[package]]
 name = "mica-probe"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "mica-inspect",
  "serde",
@@ -759,7 +759,7 @@ dependencies = [
 
 [[package]]
 name = "mica-runtime"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "mica-inspect",
  "mica-probe",
@@ -771,7 +771,7 @@ dependencies = [
 
 [[package]]
 name = "mica-security"
-version = "0.2.0"
+version = "0.1.0"
 dependencies = [
  "mica-probe",
  "serde",

@@ -361,7 +361,10 @@ impl fmt::Display for InspectError {
         match self {
             InspectError::Io(error) => write!(f, "{error}"),
             InspectError::NotAFile(path) => {
-                write!(f, "{path} is neither a regular file nor an application bundle")
+                write!(
+                    f,
+                    "{path} is neither a regular file nor an application bundle"
+                )
             }
         }
     }
@@ -411,7 +414,11 @@ pub fn inspect_path_with(path: &Path, options: Options) -> Result<Report, Inspec
         report.notes.push(format!(
             "only the first {} MiB were inspected{}",
             options.max_read >> 20,
-            if options.hash { "; the sha256 covers only those bytes" } else { "" }
+            if options.hash {
+                "; the sha256 covers only those bytes"
+            } else {
+                ""
+            }
         ));
     }
     Ok(report)
@@ -460,10 +467,7 @@ pub fn inspect_bytes(name: &str, data: &[u8]) -> Report {
         report.platform = Platform::Windows;
         report.kind = Kind::Shortcut;
     } else if data.starts_with(b"#!") {
-        let line = data
-            .split(|&byte| byte == b'\n')
-            .next()
-            .unwrap_or_default();
+        let line = data.split(|&byte| byte == b'\n').next().unwrap_or_default();
         let interpreter = String::from_utf8_lossy(&line[2..]).trim().to_string();
         report.format = Format::Script { interpreter };
         report.platform = Platform::Any;

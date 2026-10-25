@@ -179,6 +179,9 @@ struct SetupArgs {
     dry_run: bool,
     #[arg(long)]
     yes: bool,
+    /// Print the plans as JSON (implies --dry-run)
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Subcommand)]
@@ -292,7 +295,11 @@ fn main() -> ExitCode {
     let result = match cli.command {
         Command::Doctor(json) => system::doctor(&session, json.json),
         Command::Inspect { path, json } => programs::inspect(&session, &path, json.json),
-        Command::Plan { path, backend, json } => parse_backend(&backend)
+        Command::Plan {
+            path,
+            backend,
+            json,
+        } => parse_backend(&backend)
             .and_then(|backend| programs::plan(&session, &path, backend, json.json)),
         Command::Run(args) => parse_backend(&args.backend).and_then(|backend| {
             programs::run(
@@ -304,24 +311,38 @@ fn main() -> ExitCode {
                 &args.args,
             )
         }),
-        Command::Install(args) => {
-            programs::install(&session, &args.installer, args.name.as_deref(), args.dry_run, args.yes)
-        }
+        Command::Install(args) => programs::install(
+            &session,
+            &args.installer,
+            args.name.as_deref(),
+            args.dry_run,
+            args.yes,
+        ),
         Command::Open { path } => programs::open(&session, &path),
-        Command::Apps { action } => match action.unwrap_or(AppsAction::List(JsonArg { json: false })) {
-            AppsAction::List(json) => programs::apps_list(&session, json.json),
-            AppsAction::Remove {
-                app,
-                delete_prefix,
-                yes,
-            } => programs::apps_remove(&session, &app, delete_prefix, yes),
-        },
+        Command::Apps { action } => {
+            match action.unwrap_or(AppsAction::List(JsonArg { json: false })) {
+                AppsAction::List(json) => programs::apps_list(&session, json.json),
+                AppsAction::Remove {
+                    app,
+                    delete_prefix,
+                    yes,
+                } => programs::apps_remove(&session, &app, delete_prefix, yes),
+            }
+        }
         Command::Runtimes(json) => system::runtimes(&session, json.json),
-        Command::Setup(args) => system::setup(&session, &args.features, args.dry_run, args.yes),
+        Command::Setup(args) => system::setup(
+            &session,
+            &args.features,
+            args.dry_run || args.json,
+            args.yes,
+            args.json,
+        ),
         Command::Games(json) => games::games(&session, json.json),
         Command::Compatibility { game, json } => games::compatibility(&session, &game, json.json),
         Command::Security { action } => match action {
-            SecurityAction::Check { game, json } => security::check(&session, game.as_deref(), json.json),
+            SecurityAction::Check { game, json } => {
+                security::check(&session, game.as_deref(), json.json)
+            }
             SecurityAction::BootProfile {
                 apply,
                 rollback,

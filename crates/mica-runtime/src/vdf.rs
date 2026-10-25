@@ -174,7 +174,10 @@ pub fn parse(text: &str) -> Result<Value, ParseError> {
         match token {
             Token::Text(key) => match lexer.next()? {
                 Some((_, Token::Text(value))) => {
-                    stack.last_mut().expect("never empty").push((key, Value::Text(value)));
+                    stack
+                        .last_mut()
+                        .expect("never empty")
+                        .push((key, Value::Text(value)));
                 }
                 Some((_, Token::Open)) => {
                     if stack.len() > 64 {

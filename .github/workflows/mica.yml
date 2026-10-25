@@ -1,0 +1,315 @@
+# Tests for the compatibility engine (the `mica` command) and for Portable
+# Host, on GitHub-hosted machines: Linux x86-64 and ARM64, macOS on Apple
+# Silicon and Intel, Windows x86-64 and ARM64. Every job writes what it ran
+# and saw to the run's summary; docs/VALIDATION.md quotes those summaries.
+name: MICA
+
+on:
+  push:
+    branches: [main, "overhaul/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mica-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # The toolchain rust-toolchain.toml pins, without the cross targets only
+  # the Nix builds use.
+  RUSTUP_TOOLCHAIN: "1.99.1"
+  MICA_CRATES: -p mica-inspect -p mica-probe -p mica-security -p mica-compat -p mica-runtime -p mica-engine -p mica-cli
+
+jobs:
+  engine:
+    name: mica on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel, windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust ${{ env.RUSTUP_TOOLCHAIN }}
+        run: bash .github/scripts/install-rust.sh --component clippy,rustfmt
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Test
+        run: cargo test --locked $MICA_CRATES -- --nocapture
+      - name: Clippy
+        run: cargo clippy --locked $MICA_CRATES --all-targets -- --deny warnings
+      - name: Build
+        run: cargo build --locked --release -p mica-cli
+      - name: Run mica on this machine
+        run: |
+          export MICA_HOME="$RUNNER_TEMP/mica-home"
+          mica=target/release/mica
+          case "$RUNNER_OS" in
+            Windows) system="$SYSTEMROOT/System32/notepad.exe" ;;
+            macOS) system=/bin/ls ;;
+            *) system=/bin/ls ;;
+          esac
+          mkdir -p out
+          run() { echo "\$ mica $*"; "$mica" "$@"; echo "(exit $?)"; echo; }
+          {
+            echo "## mica on $ImageOS $ImageVersion ($RUNNER_ARCH)"
+            echo
+            echo '```text'
+            run --version
+            run doctor
+            run inspect "$system"
+            run plan "$system"
+            run runtimes
+            run security check
+            run compatibility fortnite
+            run compatibility apex
+            run setup --dry-run
+            run vm check
+            run bench --iterations 100
+            echo '```'
+          } > out/report.md 2>&1
+          "$mica" doctor --json > out/doctor.json
+          cat out/report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mica-report-${{ matrix.os }}
+          path: out
+
+  portable-host:
+    name: Portable Host on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust ${{ env.RUSTUP_TOOLCHAIN }} with the wasm32 target
+        run: bash .github/scripts/install-rust.sh --target wasm32-unknown-unknown
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-tools@1.261.0
+      - name: Build the moving-square component, independently of any host
+        run: |
+          cargo build --locked -p moving-square --target wasm32-unknown-unknown --profile guest
+          mkdir -p target/component
+          wasm-tools component new target/wasm32-unknown-unknown/guest/moving_square.wasm -o target/component/moving-square.wasm
+          wasm-tools validate target/component/moving-square.wasm
+      - name: Guest logic, host units, diagnostics, and golden replays (headless host)
+        run: |
+          cargo test --locked -p moving-square
+          cargo test --locked -p portable-host --no-default-features
+      - name: Replay every script with the release host
+        run: |
+          cargo build --locked --release -p portable-host --no-default-features
+          {
+            echo "## Portable Host (headless) on $ImageOS $ImageVersion ($RUNNER_ARCH)"
+            echo
+            echo '```text'
+            for script in tests/replay/*.script; do
+              target/release/portable-host replay target/component/moving-square.wasm "$script" --expect "${script%.script}.trace"
+              echo
+            done
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+  wine-e2e:
+    name: Windows program under Wine through mica (Ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust, the MinGW target, Wine, and Xvfb
+        run: |
+          bash .github/scripts/install-rust.sh --target x86_64-pc-windows-gnu
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends wine64 gcc-mingw-w64-x86-64 xvfb
+      - name: Build mica and the test program
+        run: |
+          cargo build --locked --release -p mica-cli
+          mkdir -p fixture
+          rustc --edition 2024 -O --target x86_64-pc-windows-gnu -C linker=x86_64-w64-mingw32-gcc \
+            tests/fixtures/mica-hello.rs -o fixture/mica-hello.exe
+          cp fixture/mica-hello.exe fixture/mica-hello-setup.exe
+      - name: Run, install, and run the installed program
+        run: |
+          export MICA_HOME="$RUNNER_TEMP/mica-home"
+          mica=target/release/mica
+          "$mica" config set windows.env "WINEDLLOVERRIDES=mscoree,mshtml="
+          {
+            echo "## A Windows program through mica and Wine ($(wine64 --version 2>/dev/null || wine --version))"
+            echo
+            echo '```text'
+            "$mica" plan fixture/mica-hello.exe
+            xvfb-run -a "$mica" run fixture/mica-hello.exe -- a "b c"
+            xvfb-run -a "$mica" install fixture/mica-hello-setup.exe --name "MICA Hello" --yes
+            "$mica" apps
+            xvfb-run -a "$mica" run "MICA Hello" -- --from-start-menu
+            echo '```'
+          } 2>&1 | grep -v '^fixme:' | tee -a "$GITHUB_STEP_SUMMARY" | tee out.txt
+          grep -q "under Wine" out.txt
+          grep -q 'args: \["a", "b c"\]' out.txt
+          grep -q 'args: \["--from-start-menu"\]' out.txt
+
+  linux-static:
+    name: Static Linux build (${{ matrix.arch }})
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            os: ubuntu-latest
+          - arch: aarch64
+            os: ubuntu-24.04-arm
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          sudo apt-get update && sudo apt-get install -y musl-tools
+          bash .github/scripts/install-rust.sh --target ${{ matrix.arch }}-unknown-linux-musl
+          cargo build --locked --release -p mica-cli --target ${{ matrix.arch }}-unknown-linux-musl
+          cp target/${{ matrix.arch }}-unknown-linux-musl/release/mica mica
+          file mica
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mica-linux-${{ matrix.arch }}
+          path: mica
+
+  distributions:
+    name: ${{ matrix.image }}
+    needs: linux-static
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: "debian:13", family: debian, manager: apt }
+          - { image: "ubuntu:24.04", family: debian, manager: apt }
+          - { image: "fedora:43", family: fedora, manager: dnf }
+          - { image: "archlinux:latest", family: arch, manager: pacman }
+          - { image: "opensuse/tumbleweed", family: suse, manager: zypper }
+          - { image: "opensuse/leap:16.0", family: suse, manager: zypper }
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: mica-linux-x86_64
+      - name: Identify the distribution and check mica's package names
+        run: |
+          chmod +x mica
+          docker run --rm -v "$PWD:/w" -w /w -e MICA_HOME=/tmp/mica-home "${{ matrix.image }}" \
+            sh tests/distro-check.sh /w/mica ${{ matrix.family }} ${{ matrix.manager }} > report.txt 2>&1 \
+            || { cat report.txt; exit 1; }
+          { echo '```text'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          cat report.txt
+
+  install-scripts:
+    name: Install scripts on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash .github/scripts/install-rust.sh
+        shell: bash
+      - run: cargo build --locked --release -p mica-cli
+        shell: bash
+      - name: Verified install, tampered install, uninstall (sh)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -x
+          release="$RUNNER_TEMP/release"; mkdir -p "$release"
+          case "$RUNNER_OS" in Linux) target=$(uname -m)-unknown-linux-musl ;; macOS) target=universal-apple-darwin ;; esac
+          tar -czf "$release/mica-$target.tar.gz" -C target/release mica
+          (cd "$release" && shasum -a 256 "mica-$target.tar.gz" > SHA256SUMS)
+          MICA_RELEASE_BASE="file://$release" MICA_INSTALL_DIR="$RUNNER_TEMP/bin" sh scripts/install.sh
+          "$RUNNER_TEMP/bin/mica" --version
+          sed -i.bak 's/^./0/' "$release/SHA256SUMS"
+          if MICA_RELEASE_BASE="file://$release" MICA_INSTALL_DIR="$RUNNER_TEMP/bin2" sh scripts/install.sh; then
+            echo "a tampered checksum was accepted"; exit 1
+          fi
+          test ! -e "$RUNNER_TEMP/bin2/mica"
+          MICA_HOME="$RUNNER_TEMP/home" MICA_INSTALL_DIR="$RUNNER_TEMP/bin" sh scripts/uninstall.sh < /dev/null
+          test ! -e "$RUNNER_TEMP/bin/mica"
+      - name: Verified install, tampered install, uninstall (PowerShell)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $release = Join-Path $env:RUNNER_TEMP 'release'; New-Item -ItemType Directory $release | Out-Null
+          Compress-Archive -Path target/release/mica.exe -DestinationPath "$release/mica-x86_64-pc-windows-msvc.zip"
+          $hash = (Get-FileHash "$release/mica-x86_64-pc-windows-msvc.zip").Hash.ToLower()
+          "$hash  mica-x86_64-pc-windows-msvc.zip" | Set-Content "$release/SHA256SUMS"
+          $env:MICA_RELEASE_BASE = ([Uri]$release).AbsoluteUri
+          $env:MICA_INSTALL_DIR = Join-Path $env:RUNNER_TEMP 'mica'
+          ./scripts/install.ps1
+          if (([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') -notcontains $env:MICA_INSTALL_DIR) { throw 'PATH was not updated' }
+          & "$env:MICA_INSTALL_DIR/mica.exe" --version
+          ("0" * 64) + "  mica-x86_64-pc-windows-msvc.zip" | Set-Content "$release/SHA256SUMS"
+          $env:MICA_INSTALL_DIR = Join-Path $env:RUNNER_TEMP 'mica2'
+          $failed = $false
+          try { ./scripts/install.ps1 } catch { $failed = $true; Write-Host "refused as expected: $_" }
+          if (-not $failed -or (Test-Path "$env:MICA_INSTALL_DIR/mica.exe")) { throw 'a tampered checksum was accepted' }
+          $env:MICA_INSTALL_DIR = Join-Path $env:RUNNER_TEMP 'mica'
+          $env:MICA_HOME = Join-Path $env:RUNNER_TEMP 'home'
+          ./scripts/uninstall.ps1
+          if (Test-Path "$env:MICA_INSTALL_DIR/mica.exe") { throw 'mica.exe is still installed' }
+          if (([Environment]::GetEnvironmentVariable('Path', 'User') -split ';') -contains $env:MICA_INSTALL_DIR) { throw 'PATH still lists MICA' }
+
+  packages:
+    name: Debian and RPM packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash .github/scripts/install-rust.sh
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb,cargo-generate-rpm
+      - name: Build both packages
+        run: |
+          cargo build --locked --release -p mica-cli
+          cargo deb --no-build -p mica-cli
+          cargo generate-rpm -p crates/mica-cli
+          ls -la target/debian target/generate-rpm
+      - name: Install, run, and remove the .deb on Ubuntu
+        run: |
+          sudo apt-get install -y ./target/debian/*.deb
+          mica --version
+          dpkg -L mica
+          sudo apt-get remove -y mica
+          ! command -v mica
+      - name: Install, run, and remove the .rpm on Fedora
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w fedora:43 sh -c \
+            'dnf install -y ./target/generate-rpm/*.rpm && mica --version && rpm -ql mica && dnf remove -y mica && ! command -v mica'
+
+  nix:
+    name: Nix flake (mica package and every original check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v7
+      - uses: cachix/install-nix-action@v31
+      - name: Evaluate every output on every system
+        run: nix flake show --all-systems
+      - name: Build mica and run its tests in the Nix sandbox
+        run: nix build --print-build-logs .#mica .#checks.x86_64-linux.micaTests
+      - name: Every check, including Portable Host's
+        run: nix flake check --print-build-logs

@@ -5,7 +5,10 @@ use std::path::Path;
 use crate::{BundleDetails, Format, InspectError, Options, Report};
 
 /// Inspect `path` as an application bundle; `None` if it is not one.
-pub(crate) fn inspect_bundle(path: &Path, options: Options) -> Result<Option<Report>, InspectError> {
+pub(crate) fn inspect_bundle(
+    path: &Path,
+    options: Options,
+) -> Result<Option<Report>, InspectError> {
     let contents = path.join("Contents");
     let macos = contents.join("MacOS");
     if !macos.is_dir() {
@@ -93,7 +96,10 @@ mod tests {
             Some("com.example.game&co")
         );
         assert_eq!(plist_string(plist, "Missing"), None);
-        assert_eq!(plist_string(b"bplist00\x01\x02", "CFBundleExecutable"), None);
+        assert_eq!(
+            plist_string(b"bplist00\x01\x02", "CFBundleExecutable"),
+            None
+        );
     }
 
     #[test]

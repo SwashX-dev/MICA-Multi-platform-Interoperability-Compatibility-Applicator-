@@ -24,7 +24,10 @@ pub(crate) fn probe(context: &Context, profile: &mut HostProfile, depth: Depth) 
     let model = context.run("sysctl", &["-n", "hw.model"]);
     profile.device.vendor = Some("Apple".into());
     profile.device.product = model.clone();
-    if model.as_deref().is_some_and(|model| model.starts_with("VirtualMac")) {
+    if model
+        .as_deref()
+        .is_some_and(|model| model.starts_with("VirtualMac"))
+    {
         profile.virtualization.guest_of = Some("apple virtualization framework".into());
     }
     if depth == Depth::Light {

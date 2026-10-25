@@ -20,10 +20,15 @@ use serde::Serialize;
 use mica_probe::{Context, HostProfile};
 
 /// First line of every entry MICA writes; rollback deletes only such files.
-pub const MARKER: &str = "# Created by MICA (mica security boot-profile). Delete this file to remove the entry.";
+pub const MARKER: &str =
+    "# Created by MICA (mica security boot-profile). Delete this file to remove the entry.";
 pub const ENTRY_PREFIX: &str = "mica-anticheat-";
 
-const ENTRY_DIRS: &[&str] = &["/boot/loader/entries", "/efi/loader/entries", "/boot/efi/loader/entries"];
+const ENTRY_DIRS: &[&str] = &[
+    "/boot/loader/entries",
+    "/efi/loader/entries",
+    "/boot/efi/loader/entries",
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -131,7 +136,12 @@ fn entries_dir(context: &Context) -> Option<&'static str> {
 }
 
 /// Plan the boot profile for parameters `add` and `remove` (by name).
-pub fn plan(context: &Context, profile: &HostProfile, add: &[String], remove: &[String]) -> BootPlan {
+pub fn plan(
+    context: &Context,
+    profile: &HostProfile,
+    add: &[String],
+    remove: &[String],
+) -> BootPlan {
     let mut plan = BootPlan {
         loader: LoaderKind::Unknown,
         add: add.to_vec(),
@@ -155,13 +165,15 @@ pub fn plan(context: &Context, profile: &HostProfile, add: &[String], remove: &[
                 .into(),
             format!(
                 "  specialisation.anticheat.configuration.boot.kernelParams = [ {} ];",
-                add.iter().map(|parameter| format!("\"{parameter}\"")).collect::<Vec<_>>().join(" ")
+                add.iter()
+                    .map(|parameter| format!("\"{parameter}\""))
+                    .collect::<Vec<_>>()
+                    .join(" ")
             ),
             "Then run `sudo nixos-rebuild boot` and pick the entry at boot.".into(),
         ];
-        plan.recovery = vec![
-            "Remove the specialisation line and run `sudo nixos-rebuild boot`.".into(),
-        ];
+        plan.recovery =
+            vec!["Remove the specialisation line and run `sudo nixos-rebuild boot`.".into()];
         plan.warnings.push(
             "NixOS kernels are not signed with a key on Epic's well-known list, so this entry \
              alone does not make NixOS eligible."
@@ -177,15 +189,21 @@ pub fn plan(context: &Context, profile: &HostProfile, add: &[String], remove: &[
                 .into(),
             format!(
                 "  sudo rpm-ostree kargs {}{}",
-                add.iter().map(|parameter| format!("--append-if-missing={parameter} ")).collect::<String>(),
-                remove.iter().map(|name| format!("--delete-if-present={name} ")).collect::<String>()
+                add.iter()
+                    .map(|parameter| format!("--append-if-missing={parameter} "))
+                    .collect::<String>(),
+                remove
+                    .iter()
+                    .map(|name| format!("--delete-if-present={name} "))
+                    .collect::<String>()
             )
             .trim_end()
             .to_string(),
             "and reboot.".into(),
         ];
         plan.recovery = vec![
-            "Choose the previous deployment in the boot menu, or run `sudo rpm-ostree rollback`.".into(),
+            "Choose the previous deployment in the boot menu, or run `sudo rpm-ostree rollback`."
+                .into(),
         ];
         return plan;
     }
@@ -205,7 +223,9 @@ pub fn plan(context: &Context, profile: &HostProfile, add: &[String], remove: &[
         let base = entries.iter().find(|entry| {
             !kernel.is_empty()
                 && (entry.get("version") == Some(kernel.as_str())
-                    || entry.get("linux").is_some_and(|linux| linux.contains(&kernel)))
+                    || entry
+                        .get("linux")
+                        .is_some_and(|linux| linux.contains(&kernel)))
         });
         let Some(base) = base else {
             plan.steps.push(format!(
@@ -249,7 +269,8 @@ pub fn plan(context: &Context, profile: &HostProfile, add: &[String], remove: &[
         plan.base_entry = Some(format!("{dir}/{}", base.file));
         plan.new_entry = Some((file.clone(), contents));
         plan.automatic = true;
-        plan.steps = vec![
+        plan.steps =
+            vec![
             format!("Create {file}: a copy of {} whose command line has {joined}", base.file),
             "Nothing else changes: the existing entries, the default entry, the kernel, and the \
              firmware stay as they are."
@@ -258,7 +279,9 @@ pub fn plan(context: &Context, profile: &HostProfile, add: &[String], remove: &[
         let entry_name = format!("{ENTRY_PREFIX}{version}.conf");
         plan.use_it = vec![
             "Pick \"(MICA anti-cheat profile)\" in the boot menu when you want to play.".into(),
-            format!("With systemd-boot, `sudo bootctl set-oneshot {entry_name}` boots it once on the next restart."),
+            format!(
+                "With systemd-boot, `sudo bootctl set-oneshot {entry_name}` boots it once on the next restart."
+            ),
         ];
         plan.recovery = vec![
             format!("`sudo mica security boot-profile --rollback`, or delete {file}."),
@@ -302,11 +325,13 @@ pub fn plan(context: &Context, profile: &HostProfile, add: &[String], remove: &[
                 .into(),
         ];
         if !remove.is_empty() {
-            plan.steps.push(format!("Also remove: {}", remove.join(", ")));
+            plan.steps
+                .push(format!("Also remove: {}", remove.join(", ")));
         }
         plan.recovery = vec![
             "Restore your copy of /etc/default/grub and run the same command again.".into(),
-            "If a boot fails, press `e` at the GRUB menu and delete the parameters for that boot.".into(),
+            "If a boot fails, press `e` at the GRUB menu and delete the parameters for that boot."
+                .into(),
         ];
         plan.warnings.push(
             "MICA does not edit GRUB configuration automatically: generated grub.cfg files \
@@ -327,7 +352,9 @@ pub fn plan(context: &Context, profile: &HostProfile, add: &[String], remove: &[
 /// does not exist yet. Returns the path written.
 pub fn apply(context: &Context, plan: &BootPlan) -> std::io::Result<PathBuf> {
     let Some((file, contents)) = &plan.new_entry else {
-        return Err(std::io::Error::other("this plan has no entry for MICA to create"));
+        return Err(std::io::Error::other(
+            "this plan has no entry for MICA to create",
+        ));
     };
     let path = context.path(file);
     if path.exists() {
@@ -402,7 +429,11 @@ mod tests {
     fn plans_applies_and_rolls_back_a_bls_entry() {
         let root = tree("bls");
         write(&root, "/etc/os-release", "ID=fedora\nVERSION_ID=43\n");
-        write(&root, "/proc/sys/kernel/osrelease", "6.17.4-300.fc43.x86_64\n");
+        write(
+            &root,
+            "/proc/sys/kernel/osrelease",
+            "6.17.4-300.fc43.x86_64\n",
+        );
         let original = "title Fedora Linux (6.17.4-300.fc43.x86_64) 43\n\
                         version 6.17.4-300.fc43.x86_64\n\
                         linux /vmlinuz-6.17.4-300.fc43.x86_64\n\
@@ -410,8 +441,16 @@ mod tests {
                         options root=UUID=1 ro rhgb quiet iommu=pt\n\
                         grub_users $grub_users\n\
                         grub_class fedora\n";
-        write(&root, "/boot/loader/entries/abc-6.17.4-300.fc43.x86_64.conf", original);
-        write(&root, "/boot/loader/entries/abc-6.16.0-200.fc43.x86_64.conf", "title old\nversion 6.16.0\nlinux /vmlinuz-6.16.0\noptions ro\n");
+        write(
+            &root,
+            "/boot/loader/entries/abc-6.17.4-300.fc43.x86_64.conf",
+            original,
+        );
+        write(
+            &root,
+            "/boot/loader/entries/abc-6.16.0-200.fc43.x86_64.conf",
+            "title old\nversion 6.16.0\nlinux /vmlinuz-6.16.0\noptions ro\n",
+        );
         let context = Context::fake(&root, &[], Context::no_commands());
         let profile = probe_with(&context, Os::Linux);
         let add = vec![
@@ -422,11 +461,21 @@ mod tests {
         let bls = plan(&context, &profile, &add, &["iommu".to_string()]);
         assert_eq!(bls.loader, LoaderKind::BootLoaderSpec);
         assert!(bls.automatic);
-        assert!(bls.base_entry.as_deref().unwrap().ends_with("abc-6.17.4-300.fc43.x86_64.conf"));
+        assert!(
+            bls.base_entry
+                .as_deref()
+                .unwrap()
+                .ends_with("abc-6.17.4-300.fc43.x86_64.conf")
+        );
         let (file, contents) = bls.new_entry.clone().unwrap();
-        assert_eq!(file, "/boot/loader/entries/mica-anticheat-6.17.4-300.fc43.x86_64.conf");
+        assert_eq!(
+            file,
+            "/boot/loader/entries/mica-anticheat-6.17.4-300.fc43.x86_64.conf"
+        );
         assert!(contents.starts_with(MARKER));
-        assert!(contents.contains("title Fedora Linux (6.17.4-300.fc43.x86_64) 43 (MICA anti-cheat profile)\n"));
+        assert!(contents.contains(
+            "title Fedora Linux (6.17.4-300.fc43.x86_64) 43 (MICA anti-cheat profile)\n"
+        ));
         assert!(contents.contains(
             "options root=UUID=1 ro rhgb quiet lockdown=integrity sysctl.kernel.kexec_load_disabled=1 iommu.passthrough=0\n"
         ));
@@ -459,7 +508,11 @@ mod tests {
         let grub = plan(&context, &profile, &["lockdown=integrity".into()], &[]);
         assert_eq!(grub.loader, LoaderKind::GrubGenerated);
         assert!(!grub.automatic);
-        assert!(grub.steps.iter().any(|step| step.contains("sudo update-grub")));
+        assert!(
+            grub.steps
+                .iter()
+                .any(|step| step.contains("sudo update-grub"))
+        );
         std::fs::remove_dir_all(&root).unwrap();
 
         let root = tree("ostree");
@@ -467,7 +520,12 @@ mod tests {
         write(&root, "/run/ostree-booted", "");
         let context = Context::fake(&root, &[], Context::no_commands());
         let profile = probe_with(&context, Os::Linux);
-        let ostree = plan(&context, &profile, &["lockdown=integrity".into()], &["iommu".into()]);
+        let ostree = plan(
+            &context,
+            &profile,
+            &["lockdown=integrity".into()],
+            &["iommu".into()],
+        );
         assert_eq!(ostree.loader, LoaderKind::RpmOstree);
         assert!(ostree.steps.iter().any(|step| step
             == "  sudo rpm-ostree kargs --append-if-missing=lockdown=integrity --delete-if-present=iommu"));

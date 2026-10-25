@@ -92,7 +92,12 @@ impl Runtimes {
     }
 }
 
-fn program(context: &Context, kind: RuntimeKind, names: &[&str], version_args: Option<&[&str]>) -> Option<Runtime> {
+fn program(
+    context: &Context,
+    kind: RuntimeKind,
+    names: &[&str],
+    version_args: Option<&[&str]>,
+) -> Option<Runtime> {
     names.iter().find_map(|name| {
         let path = context.which(name)?;
         let version = version_args.and_then(|args| {
@@ -129,21 +134,56 @@ pub fn discover(context: &Context, os: Os, preferred_proton: Option<&str>) -> Ru
             found.push(runtime);
         }
     };
-    push(program(context, RuntimeKind::PortableHost, &["portable-host"], None));
-    push(program(context, RuntimeKind::DosBox, &["dosbox-staging", "dosbox-x", "dosbox"], None));
-    push(program(context, RuntimeKind::Moonlight, &["moonlight", "moonlight-qt"], None));
+    push(program(
+        context,
+        RuntimeKind::PortableHost,
+        &["portable-host"],
+        None,
+    ));
+    push(program(
+        context,
+        RuntimeKind::DosBox,
+        &["dosbox-staging", "dosbox-x", "dosbox"],
+        None,
+    ));
+    push(program(
+        context,
+        RuntimeKind::Moonlight,
+        &["moonlight", "moonlight-qt"],
+        None,
+    ));
     match os {
         Os::Linux => {
-            push(program(context, RuntimeKind::Wine, &["wine", "wine64"], Some(&["--version"])));
+            push(program(
+                context,
+                RuntimeKind::Wine,
+                &["wine", "wine64"],
+                Some(&["--version"]),
+            ));
             push(program(context, RuntimeKind::Umu, &["umu-run"], None));
-            push(program(context, RuntimeKind::Qemu, &["qemu-system-x86_64", "qemu-system-aarch64"], None));
+            push(program(
+                context,
+                RuntimeKind::Qemu,
+                &["qemu-system-x86_64", "qemu-system-aarch64"],
+                None,
+            ));
             push(program(context, RuntimeKind::Libvirt, &["virsh"], None));
-            push(program(context, RuntimeKind::Fex, &["FEXInterpreter", "FEXBash"], None));
+            push(program(
+                context,
+                RuntimeKind::Fex,
+                &["FEXInterpreter", "FEXBash"],
+                None,
+            ));
             push(program(context, RuntimeKind::Box64, &["box64"], None));
             runtimes.steam = steam::find(&steam::candidate_roots(&home, "linux"));
         }
         Os::MacOs => {
-            push(program(context, RuntimeKind::Wine, &["wine", "wine64"], Some(&["--version"])));
+            push(program(
+                context,
+                RuntimeKind::Wine,
+                &["wine", "wine64"],
+                Some(&["--version"]),
+            ));
             push(existing(
                 RuntimeKind::Crossover,
                 "CrossOver",
@@ -153,7 +193,11 @@ pub fn discover(context: &Context, os: Os, preferred_proton: Option<&str>) -> Ru
                 "/usr/local/opt/game-porting-toolkit/bin/wine64",
                 "/opt/homebrew/opt/game-porting-toolkit/bin/wine64",
             ] {
-                push(existing(RuntimeKind::GamePortingToolkit, "Game Porting Toolkit", Path::new(path)));
+                push(existing(
+                    RuntimeKind::GamePortingToolkit,
+                    "Game Porting Toolkit",
+                    Path::new(path),
+                ));
             }
             push(existing(
                 RuntimeKind::Rosetta,
@@ -161,7 +205,12 @@ pub fn discover(context: &Context, os: Os, preferred_proton: Option<&str>) -> Ru
                 Path::new("/Library/Apple/usr/libexec/oah/libRosettaRuntime"),
             ));
             push(program(context, RuntimeKind::Lima, &["limactl"], None));
-            push(program(context, RuntimeKind::Qemu, &["qemu-system-aarch64", "qemu-system-x86_64"], None));
+            push(program(
+                context,
+                RuntimeKind::Qemu,
+                &["qemu-system-aarch64", "qemu-system-x86_64"],
+                None,
+            ));
             runtimes.steam = steam::find(&steam::candidate_roots(&home, "macos"));
         }
         Os::Windows => {
@@ -186,7 +235,12 @@ pub fn discover(context: &Context, os: Os, preferred_proton: Option<&str>) -> Ru
                     version: distributions.map(|list| format!("distributions: {list}")),
                 }));
             }
-            push(program(context, RuntimeKind::Qemu, &["qemu-system-x86_64"], None));
+            push(program(
+                context,
+                RuntimeKind::Qemu,
+                &["qemu-system-x86_64"],
+                None,
+            ));
             let mut roots = steam::candidate_roots(&home, "windows");
             if let Some(path) = windows_steam_path(context) {
                 roots.insert(0, (path, false));
@@ -249,7 +303,10 @@ pub fn discover(context: &Context, os: Os, preferred_proton: Option<&str>) -> Ru
 
 /// Steam's install path from the registry (`HKCU\Software\Valve\Steam`).
 fn windows_steam_path(context: &Context) -> Option<PathBuf> {
-    let output = context.run("reg", &["query", r"HKCU\Software\Valve\Steam", "/v", "SteamPath"])?;
+    let output = context.run(
+        "reg",
+        &["query", r"HKCU\Software\Valve\Steam", "/v", "SteamPath"],
+    )?;
     let line = output.lines().find(|line| line.contains("SteamPath"))?;
     let value = line.split("REG_SZ").nth(1)?.trim();
     Some(PathBuf::from(value.replace('/', "\\")))
@@ -269,13 +326,24 @@ mod tests {
         }
         let context = Context::fake(
             Path::new("/"),
-            &[("PATH", &bin.to_string_lossy()), ("HOME", &home.to_string_lossy())],
+            &[
+                ("PATH", &bin.to_string_lossy()),
+                ("HOME", &home.to_string_lossy()),
+            ],
             Box::new(|program, args| {
-                (program.ends_with("wine") && args == ["--version"]).then(|| b"wine-11.0\n".to_vec())
+                (program.ends_with("wine") && args == ["--version"])
+                    .then(|| b"wine-11.0\n".to_vec())
             }),
         );
         let runtimes = discover(&context, Os::Linux, None);
-        assert_eq!(runtimes.first(RuntimeKind::Wine).unwrap().version.as_deref(), Some("wine-11.0"));
+        assert_eq!(
+            runtimes
+                .first(RuntimeKind::Wine)
+                .unwrap()
+                .version
+                .as_deref(),
+            Some("wine-11.0")
+        );
         assert!(runtimes.has(RuntimeKind::Umu));
         assert!(runtimes.has(RuntimeKind::Libvirt));
         assert!(!runtimes.has(RuntimeKind::Qemu));

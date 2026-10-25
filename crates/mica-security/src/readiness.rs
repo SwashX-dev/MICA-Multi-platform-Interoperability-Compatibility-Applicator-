@@ -291,7 +291,9 @@ pub fn eac_linux_v2(profile: &HostProfile, policy: Policy) -> Readiness {
             (Some(_), true) => Status::NotMet,
             (Some(_), false) => Status::Unknown,
         },
-        vm.iter().map(|kind| format!("running inside: {kind}")).collect(),
+        vm.iter()
+            .map(|kind| format!("running inside: {kind}"))
+            .collect(),
         Some(fix(
             FixKind::NotFixable,
             "Install Linux directly on the computer. MICA never hides a virtual machine from \
@@ -440,7 +442,8 @@ pub fn eac_linux_v2(profile: &HostProfile, policy: Policy) -> Readiness {
                     "{source}: {name} — {}",
                     match key {
                         KeyMatch::Listed { key } => format!("well-known ({})", key.name),
-                        KeyMatch::IssuedByListed { key } => format!("issued by well-known {}", key.name),
+                        KeyMatch::IssuedByListed { key } =>
+                            format!("issued by well-known {}", key.name),
                         KeyMatch::NotListed => "NOT on Epic's well-known list".into(),
                     }
                 )
@@ -530,7 +533,10 @@ pub fn eac_linux_v2(profile: &HostProfile, policy: Policy) -> Readiness {
         .map(|module| module.name.clone())
         .collect();
     let enforced = security.module_sig_enforce == Some(true)
-        || matches!(security.lockdown.as_deref(), Some("integrity" | "confidentiality"));
+        || matches!(
+            security.lockdown.as_deref(),
+            Some("integrity" | "confidentiality")
+        );
     let unsigned_taint = security
         .tainted
         .is_some_and(|tainted| tainted & TAINT_UNSIGNED_MODULE != 0);
@@ -582,11 +588,20 @@ pub fn eac_linux_v2(profile: &HostProfile, policy: Policy) -> Readiness {
     );
 
     // 5. IOMMU.
-    let passthrough_flags: Vec<&str> = ["iommu=pt", "iommu.passthrough=1", "amd_iommu=off", "intel_iommu=off"]
-        .into_iter()
-        .filter(|flag| security.cmdline_has(flag))
-        .collect();
-    let identity_groups = security.iommu_group_types.get("identity").copied().unwrap_or(0);
+    let passthrough_flags: Vec<&str> = [
+        "iommu=pt",
+        "iommu.passthrough=1",
+        "amd_iommu=off",
+        "intel_iommu=off",
+    ]
+    .into_iter()
+    .filter(|flag| security.cmdline_has(flag))
+    .collect();
+    let identity_groups = security
+        .iommu_group_types
+        .get("identity")
+        .copied()
+        .unwrap_or(0);
     let translated_groups: usize = security
         .iommu_group_types
         .iter()
@@ -599,9 +614,10 @@ pub fn eac_linux_v2(profile: &HostProfile, policy: Policy) -> Readiness {
         .is_some_and(|model| model.contains("Intel"));
     let iommu = if profile.device.handheld {
         Status::NotApplicable
-    } else if security.iommu_units.is_empty() {
-        Status::NotMet
-    } else if !passthrough_flags.is_empty() || (identity_groups > 0 && translated_groups == 0) {
+    } else if security.iommu_units.is_empty()
+        || !passthrough_flags.is_empty()
+        || (identity_groups > 0 && translated_groups == 0)
+    {
         Status::NotMet
     } else {
         Status::Met
@@ -677,9 +693,15 @@ pub fn eac_linux_v2(profile: &HostProfile, policy: Policy) -> Readiness {
         vec![
             format!(
                 "active mode: {}",
-                security.lockdown.as_deref().unwrap_or("lockdown LSM not available")
+                security
+                    .lockdown
+                    .as_deref()
+                    .unwrap_or("lockdown LSM not available")
             ),
-            format!("lockdown=integrity on the command line: {}", explicit_lockdown),
+            format!(
+                "lockdown=integrity on the command line: {}",
+                explicit_lockdown
+            ),
             match security.lockdown.as_deref() {
                 Some("integrity") if !explicit_lockdown => "integrity mode is active (probably \
                     enabled automatically by Secure Boot), but Epic asks for it to be set \
@@ -771,9 +793,15 @@ pub fn eac_linux_v2(profile: &HostProfile, policy: Policy) -> Readiness {
     );
 
     let findings = builder.findings;
-    let verdict = if findings.iter().any(|finding| finding.status == Status::NotMet) {
+    let verdict = if findings
+        .iter()
+        .any(|finding| finding.status == Status::NotMet)
+    {
         Verdict::NotReady
-    } else if findings.iter().any(|finding| finding.status == Status::Unknown) {
+    } else if findings
+        .iter()
+        .any(|finding| finding.status == Status::Unknown)
+    {
         Verdict::Incomplete
     } else {
         Verdict::Ready

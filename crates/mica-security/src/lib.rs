@@ -62,9 +62,16 @@ mod tests {
             event_log: Some(fedora_boot()),
             lockdown: Some("integrity".into()),
             lsms: Some(
-                ["capability", "lockdown", "yama", "integrity", "selinux", "bpf"]
-                    .map(String::from)
-                    .to_vec(),
+                [
+                    "capability",
+                    "lockdown",
+                    "yama",
+                    "integrity",
+                    "selinux",
+                    "bpf",
+                ]
+                .map(String::from)
+                .to_vec(),
             ),
             kexec_load_disabled: Some(true),
             kexec_built_in: Some(true),
@@ -102,9 +109,17 @@ mod tests {
         let security = &mut profile.security;
         security.lockdown = Some("none".into());
         security.lsms = Some(
-            ["lockdown", "capability", "landlock", "yama", "apparmor", "ima", "evm"]
-                .map(String::from)
-                .to_vec(),
+            [
+                "lockdown",
+                "capability",
+                "landlock",
+                "yama",
+                "apparmor",
+                "ima",
+                "evm",
+            ]
+            .map(String::from)
+            .to_vec(),
         );
         security.kexec_load_disabled = Some(false);
         security.module_sig_enforce = Some(false);
@@ -151,8 +166,14 @@ mod tests {
         profile.security.event_log_readable = false;
         profile.security.mok = None;
         let readiness = eac_linux_v2(&profile, Policy::default());
-        assert_eq!(readiness.finding("measured-boot").unwrap().status, Status::Unknown);
-        assert_eq!(readiness.finding("boot-keys").unwrap().status, Status::Unknown);
+        assert_eq!(
+            readiness.finding("measured-boot").unwrap().status,
+            Status::Unknown
+        );
+        assert_eq!(
+            readiness.finding("boot-keys").unwrap().status,
+            Status::Unknown
+        );
         assert_eq!(
             readiness.finding("machine-owner-keys").unwrap().status,
             Status::Unknown
@@ -166,20 +187,32 @@ mod tests {
         deck.device.steam_deck = true;
         deck.device.handheld = true;
         let readiness = eac_linux_v2(&deck, Policy::default());
-        assert_eq!(readiness.finding("supported-device").unwrap().status, Status::NotMet);
-        assert_eq!(readiness.finding("iommu").unwrap().status, Status::NotApplicable);
+        assert_eq!(
+            readiness.finding("supported-device").unwrap().status,
+            Status::NotMet
+        );
+        assert_eq!(
+            readiness.finding("iommu").unwrap().status,
+            Status::NotApplicable
+        );
 
         let mut vm = ready_fedora();
         vm.virtualization.guest_of = Some("kvm".into());
         let generic = eac_linux_v2(&vm, Policy::default());
-        assert_eq!(generic.finding("bare-metal").unwrap().status, Status::Unknown);
+        assert_eq!(
+            generic.finding("bare-metal").unwrap().status,
+            Status::Unknown
+        );
         let fortnite = eac_linux_v2(
             &vm,
             Policy {
                 forbid_virtual_machines: true,
             },
         );
-        assert_eq!(fortnite.finding("bare-metal").unwrap().status, Status::NotMet);
+        assert_eq!(
+            fortnite.finding("bare-metal").unwrap().status,
+            Status::NotMet
+        );
 
         let mut openrc = ready_fedora();
         openrc.init = Init::OpenRc;
@@ -204,8 +237,18 @@ mod tests {
         let custom = certificate(("My Platform Key", "Me"), ("My Platform Key", "Me"));
         profile.security.event_log = Some(
             crate::tcg::tests::LogBuilder::new()
-                .variable(7, crate::tcg::EV_EFI_VARIABLE_DRIVER_CONFIG, "SecureBoot", &[1])
-                .variable(7, crate::tcg::EV_EFI_VARIABLE_AUTHORITY, "db", &[vec![0; 16], custom].concat())
+                .variable(
+                    7,
+                    crate::tcg::EV_EFI_VARIABLE_DRIVER_CONFIG,
+                    "SecureBoot",
+                    &[1],
+                )
+                .variable(
+                    7,
+                    crate::tcg::EV_EFI_VARIABLE_AUTHORITY,
+                    "db",
+                    &[vec![0; 16], custom].concat(),
+                )
                 .event(4, crate::tcg::EV_EFI_BOOT_SERVICES_APPLICATION, &[0; 8])
                 .build(),
         );
@@ -219,7 +262,10 @@ mod tests {
     #[test]
     fn lsm_lists_keep_order_and_exclusive_modules() {
         let active = ["capability", "landlock", "yama", "apparmor"].map(String::from);
-        assert_eq!(lsm_parameter(&active), "lsm=lockdown,landlock,yama,apparmor,bpf");
+        assert_eq!(
+            lsm_parameter(&active),
+            "lsm=lockdown,landlock,yama,apparmor,bpf"
+        );
         let ready = ["lockdown", "selinux", "bpf"].map(String::from);
         assert_eq!(lsm_parameter(&ready), "lsm=lockdown,selinux,bpf");
     }

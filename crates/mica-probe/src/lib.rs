@@ -247,9 +247,10 @@ pub fn probe_depth(context: &Context, os: Os, depth: Depth) -> HostProfile {
         Os::Linux => linux::probe(context, &mut profile, depth),
         Os::Windows => windows::probe(context, &mut profile, depth),
         Os::MacOs => macos::probe(context, &mut profile, depth),
-        Os::Other => profile
-            .unknowns
-            .push(format!("{} is not a platform MICA probes", std::env::consts::OS)),
+        Os::Other => profile.unknowns.push(format!(
+            "{} is not a platform MICA probes",
+            std::env::consts::OS
+        )),
     }
     profile.package_managers = packages::detect(context, os);
     profile.desktop = context.env("XDG_CURRENT_DESKTOP").map(str::to_string);

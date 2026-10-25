@@ -225,7 +225,12 @@ fn inspect_pe(data: &[u8], pe: usize, lower_name: &str, report: &mut Report) {
             optional + 92,
             u32_le(data, optional + 28).map(u64::from),
         ),
-        0x20B => (64, optional + 112, optional + 108, u64_le(data, optional + 24)),
+        0x20B => (
+            64,
+            optional + 112,
+            optional + 108,
+            u64_le(data, optional + 24),
+        ),
         _ => {
             report.notes.push("unrecognised PE optional header".into());
             (0, 0, 0, None)
@@ -314,7 +319,11 @@ fn inspect_pe(data: &[u8], pe: usize, lower_name: &str, report: &mut Report) {
 /// Installers announce themselves in their stub's section names, resources,
 /// or the overlay that carries the payload. The name is the last resort.
 fn installer_kind(image: &Image, lower_name: &str) -> Option<Installer> {
-    if image.sections.iter().any(|section| section.name == ".wixburn") {
+    if image
+        .sections
+        .iter()
+        .any(|section| section.name == ".wixburn")
+    {
         return Some(Installer::WixBurn);
     }
     let overlay = &image.data[image.overlay_start()..];
@@ -333,8 +342,7 @@ fn installer_kind(image: &Image, lower_name: &str) -> Option<Installer> {
         (b"7-Zip SFX", Installer::SevenZipSfx),
     ];
     for (marker, kind) in markers {
-        if contains(overlay_head, marker) || contains(resources, marker) || contains(head, marker)
-        {
+        if contains(overlay_head, marker) || contains(resources, marker) || contains(head, marker) {
             return Some(*kind);
         }
     }
@@ -369,8 +377,7 @@ pub(crate) fn referenced_dlls(data: &[u8]) -> BTreeSet<String> {
                 start -= 1;
             }
             if start < index {
-                let name =
-                    String::from_utf8_lossy(&data[start..index + 4]).to_ascii_lowercase();
+                let name = String::from_utf8_lossy(&data[start..index + 4]).to_ascii_lowercase();
                 if interesting(&name) {
                     found.insert(name);
                 }
@@ -456,7 +463,8 @@ pub(crate) mod tests {
         let raw_offset = headers_end.div_ceil(FILE_ALIGN) * FILE_ALIGN;
 
         // Section contents: descriptors first, then names.
-        let mut idata = vec![0u8; 20 * (spec.imports.len() + 1) + 32 * (spec.delay_imports.len() + 1)];
+        let mut idata =
+            vec![0u8; 20 * (spec.imports.len() + 1) + 32 * (spec.delay_imports.len() + 1)];
         let delay_at = 20 * (spec.imports.len() + 1);
         for (index, name) in spec.imports.iter().enumerate() {
             let rva = SECTION_RVA + idata.len() as u32;
@@ -501,7 +509,11 @@ pub(crate) mod tests {
             data[at + 4..at + 8].copy_from_slice(&size.to_le_bytes());
         };
         if !spec.imports.is_empty() {
-            directory(DIRECTORY_IMPORT, SECTION_RVA, 20 * (spec.imports.len() as u32 + 1));
+            directory(
+                DIRECTORY_IMPORT,
+                SECTION_RVA,
+                20 * (spec.imports.len() as u32 + 1),
+            );
         }
         if !spec.delay_imports.is_empty() {
             directory(DIRECTORY_DELAY_IMPORT, SECTION_RVA + delay_at as u32, 32);
@@ -522,7 +534,13 @@ pub(crate) mod tests {
         };
         section(0, ".idata", SECTION_RVA, raw_size, raw_offset);
         for (index, name) in spec.section_names.iter().enumerate() {
-            section(index + 1, name, SECTION_RVA + 0x10000 * (index as u32 + 1), 0, 0);
+            section(
+                index + 1,
+                name,
+                SECTION_RVA + 0x10000 * (index as u32 + 1),
+                0,
+                0,
+            );
         }
         data.extend_from_slice(&idata);
         data.extend_from_slice(spec.overlay);
@@ -577,7 +595,13 @@ pub(crate) mod tests {
         assert_eq!(details(&console).subsystem, "windows-console");
         assert!(console.graphics_apis().contains(&GraphicsApi::Direct3D9));
 
-        let dll = inspect_bytes("plugin.dll", &build(&Spec { dll: true, ..Spec::default() }));
+        let dll = inspect_bytes(
+            "plugin.dll",
+            &build(&Spec {
+                dll: true,
+                ..Spec::default()
+            }),
+        );
         assert_eq!(dll.kind, Kind::Library);
 
         let dotnet = inspect_bytes(
@@ -591,7 +615,13 @@ pub(crate) mod tests {
         assert!(details(&dotnet).dotnet);
         assert!(dotnet.notes.iter().any(|note| note.contains(".NET")));
 
-        let arm = inspect_bytes("arm.exe", &build(&Spec { machine: 0xAA64, ..Spec::default() }));
+        let arm = inspect_bytes(
+            "arm.exe",
+            &build(&Spec {
+                machine: 0xAA64,
+                ..Spec::default()
+            }),
+        );
         assert_eq!(arm.architectures, vec![Arch::Aarch64]);
     }
 
@@ -691,7 +721,8 @@ pub(crate) mod tests {
         broken[0x3C..0x40].copy_from_slice(&u32::MAX.to_le_bytes());
         inspect_bytes("a.exe", &broken);
         let directories_at = 0x80 + 24 + 112;
-        image[directories_at + 8..directories_at + 12].copy_from_slice(&0xFFFF_FFF0u32.to_le_bytes());
+        image[directories_at + 8..directories_at + 12]
+            .copy_from_slice(&0xFFFF_FFF0u32.to_le_bytes());
         inspect_bytes("b.exe", &image);
         for cut in [0x40, 0x84, 0x98, 0x100, 0x200, 0x300] {
             inspect_bytes("c.exe", &image[..cut.min(image.len())]);

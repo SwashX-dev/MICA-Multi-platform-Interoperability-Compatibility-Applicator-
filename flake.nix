@@ -1,5 +1,5 @@
 {
-  description = "Portable Host v0: one WebAssembly game component, native hosts for x86-64 and ARM64";
+  description = "MICA: the mica compatibility engine, and Portable Host v0 (one WebAssembly game component, native hosts for x86-64 and ARM64)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -381,11 +381,70 @@
         };
 
       builds = eachSystem build;
+
+      # The `mica` command and its tests. They need neither SDL3 nor the
+      # cross toolchains, so they build on macOS too, where Portable Host's
+      # outputs are not defined.
+      micaSystems = systems ++ [
+        "aarch64-darwin"
+        "x86_64-darwin"
+      ];
+      micaFor =
+        pkgs:
+        let
+          craneLib = (crane.mkLib pkgs).overrideToolchain toolchainFor;
+          micaArgs = common // {
+            pname = "mica";
+            version = "0.1.0";
+            cargoExtraArgs = "--locked -p mica-cli";
+            buildInputs = lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.libiconv ];
+          };
+          micaDeps = craneLib.buildDepsOnly micaArgs;
+        in
+        {
+          mica = craneLib.buildPackage (
+            micaArgs
+            // {
+              cargoArtifacts = micaDeps;
+              doCheck = false;
+              meta.mainProgram = "mica";
+            }
+          );
+          micaTests = craneLib.cargoTest (
+            micaArgs
+            // {
+              pname = "mica-tests";
+              cargoArtifacts = micaDeps;
+              cargoExtraArgs = "--locked -p mica-inspect -p mica-probe -p mica-security -p mica-compat -p mica-runtime -p mica-engine -p mica-cli";
+            }
+          );
+        };
+      micaBuilds = lib.genAttrs micaSystems (
+        system: micaFor (import nixpkgs { inherit system overlays; })
+      );
     in
     {
-      packages = lib.mapAttrs (_: b: b.packages) builds;
-      checks = lib.mapAttrs (_: b: b.checks) builds;
-      apps = lib.mapAttrs (_: b: b.apps) builds;
+      packages = lib.genAttrs micaSystems (
+        system: (builds.${system}.packages or { }) // { inherit (micaBuilds.${system}) mica; }
+      );
+      checks = lib.genAttrs micaSystems (
+        system:
+        (builds.${system}.checks or { })
+        // {
+          inherit (micaBuilds.${system}) mica micaTests;
+        }
+      );
+      apps = lib.genAttrs micaSystems (
+        system:
+        (builds.${system}.apps or { })
+        // {
+          mica = {
+            type = "app";
+            program = "${micaBuilds.${system}.mica}/bin/mica";
+            meta.description = "Run programs from other operating systems with the right backend";
+          };
+        }
+      );
 
       devShells = eachSystem (
         pkgs:

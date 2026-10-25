@@ -76,8 +76,14 @@ pub fn candidate_roots(home: &Path, os: &str) -> Vec<(PathBuf, bool)> {
             (home.join(".steam/root"), false),
             (home.join(".steam/steam"), false),
             (home.join(".local/share/Steam"), false),
-            (home.join(".var/app/com.valvesoftware.Steam/data/Steam"), true),
-            (home.join(".var/app/com.valvesoftware.Steam/.local/share/Steam"), true),
+            (
+                home.join(".var/app/com.valvesoftware.Steam/data/Steam"),
+                true,
+            ),
+            (
+                home.join(".var/app/com.valvesoftware.Steam/.local/share/Steam"),
+                true,
+            ),
             (home.join("snap/steam/common/.local/share/Steam"), false),
         ],
     }
@@ -118,17 +124,19 @@ pub fn find(candidates: &[(PathBuf, bool)]) -> Vec<SteamInstall> {
 /// root first.
 pub fn libraries(root: &Path) -> Vec<PathBuf> {
     let mut libraries = vec![root.to_path_buf()];
-    let text = std::fs::read_to_string(root.join("steamapps/libraryfolders.vdf")).unwrap_or_default();
+    let text =
+        std::fs::read_to_string(root.join("steamapps/libraryfolders.vdf")).unwrap_or_default();
     if let Ok(document) = vdf::parse(&text) {
         let folders = document
             .get("libraryfolders")
             .or_else(|| document.get("LibraryFolders"));
         for (_, folder) in folders.map(Value::entries).unwrap_or_default() {
             // Current format: { "path" "..." }; old format: "1" "/path".
-            let path = folder
-                .get("path")
-                .and_then(Value::text)
-                .or_else(|| folder.text().filter(|text| text.contains('/') || text.contains('\\')));
+            let path = folder.get("path").and_then(Value::text).or_else(|| {
+                folder
+                    .text()
+                    .filter(|text| text.contains('/') || text.contains('\\'))
+            });
             if let Some(path) = path {
                 let canonical = canonical(Path::new(path));
                 if !libraries.contains(&canonical) && canonical.join("steamapps").is_dir() {
@@ -176,7 +184,11 @@ pub fn installed_apps(install: &SteamInstall) -> Vec<SteamApp> {
             });
         }
     }
-    apps.sort_by(|a, b| a.name.to_ascii_lowercase().cmp(&b.name.to_ascii_lowercase()));
+    apps.sort_by(|a, b| {
+        a.name
+            .to_ascii_lowercase()
+            .cmp(&b.name.to_ascii_lowercase())
+    });
     apps
 }
 
@@ -218,8 +230,12 @@ pub fn compat_tools(install: &SteamInstall) -> Vec<CompatTool> {
                         .and_then(Value::text)
                         .unwrap_or(name)
                         .to_string(),
-                    require_tool_appid: tool_manifest(&tool_dir)
-                        .and_then(|manifest| manifest.get("require_tool_appid").and_then(Value::text).map(str::to_string)),
+                    require_tool_appid: tool_manifest(&tool_dir).and_then(|manifest| {
+                        manifest
+                            .get("require_tool_appid")
+                            .and_then(Value::text)
+                            .map(str::to_string)
+                    }),
                     proton: proton.is_file().then_some(proton),
                     dir: tool_dir.clone(),
                     custom: true,
@@ -239,9 +255,15 @@ pub fn compat_tools(install: &SteamInstall) -> Vec<CompatTool> {
             }
             let display_name = entry.file_name().to_string_lossy().into_owned();
             tools.push(CompatTool {
-                name: display_name.to_ascii_lowercase().replace([' ', '-', '.'], "_"),
-                require_tool_appid: tool_manifest(&dir)
-                    .and_then(|manifest| manifest.get("require_tool_appid").and_then(Value::text).map(str::to_string)),
+                name: display_name
+                    .to_ascii_lowercase()
+                    .replace([' ', '-', '.'], "_"),
+                require_tool_appid: tool_manifest(&dir).and_then(|manifest| {
+                    manifest
+                        .get("require_tool_appid")
+                        .and_then(Value::text)
+                        .map(str::to_string)
+                }),
                 display_name,
                 proton: Some(proton),
                 dir,
@@ -325,7 +347,12 @@ pub fn proton_command(
                 tool.display_name
             )
         })?;
-        command.push(runtime.join("_v2-entry-point").to_string_lossy().into_owned());
+        command.push(
+            runtime
+                .join("_v2-entry-point")
+                .to_string_lossy()
+                .into_owned(),
+        );
         command.push(format!("--verb={verb}"));
         command.push("--".into());
     }
@@ -353,7 +380,10 @@ pub fn install_tool(root: &Path, mica: &Path) -> std::io::Result<PathBuf> {
     )?;
     let tool = vdf::object(&[
         ("install_path", "."),
-        ("display_name", "MICA (checks anti-cheat policy, then runs Proton)"),
+        (
+            "display_name",
+            "MICA (checks anti-cheat policy, then runs Proton)",
+        ),
         ("from_oslist", "windows"),
         ("to_oslist", "linux"),
     ]);
@@ -441,16 +471,32 @@ pub(crate) mod tests {
         );
         write(
             root.join("steamapps/appmanifest_1628350.acf"),
-            &manifest("1628350", "Steam Linux Runtime 3.0 (sniper)", "SteamLinuxRuntime_sniper", "4"),
+            &manifest(
+                "1628350",
+                "Steam Linux Runtime 3.0 (sniper)",
+                "SteamLinuxRuntime_sniper",
+                "4",
+            ),
         );
-        write(root.join("steamapps/common/SteamLinuxRuntime_sniper/_v2-entry-point"), "");
+        write(
+            root.join("steamapps/common/SteamLinuxRuntime_sniper/_v2-entry-point"),
+            "",
+        );
         write(root.join("steamapps/common/Proton 9.0 (Beta)/proton"), "");
         write(
             root.join("steamapps/common/Proton 9.0 (Beta)/toolmanifest.vdf"),
             "\"manifest\" { \"version\" \"2\" \"commandline\" \"/proton %verb%\" \"require_tool_appid\" \"1628350\" }",
         );
-        write(root.join("steamapps/common/Proton - Experimental/proton"), "");
-        write(root.join("steamapps/common/Proton EasyAntiCheat Runtime/v2/lib64/easyanticheat_x64.so"), "");
+        write(
+            root.join("steamapps/common/Proton - Experimental/proton"),
+            "",
+        );
+        write(
+            root.join(
+                "steamapps/common/Proton EasyAntiCheat Runtime/v2/lib64/easyanticheat_x64.so",
+            ),
+            "",
+        );
         write(root.join("compatibilitytools.d/GE-Proton10-25/proton"), "");
         write(
             root.join("compatibilitytools.d/GE-Proton10-25/compatibilitytool.vdf"),
@@ -480,7 +526,13 @@ pub(crate) mod tests {
         assert_eq!(chosen[0].display_name, "Proton 9.0 (Beta)");
         assert_eq!(chosen[0].require_tool_appid.as_deref(), Some("1628350"));
 
-        let command = proton_command(install, &chosen[0], "waitforexitandrun", &["game.exe".into()]).unwrap();
+        let command = proton_command(
+            install,
+            &chosen[0],
+            "waitforexitandrun",
+            &["game.exe".into()],
+        )
+        .unwrap();
         assert!(command[0].ends_with("_v2-entry-point"));
         assert_eq!(command[1], "--verb=waitforexitandrun");
         assert_eq!(command[2], "--");

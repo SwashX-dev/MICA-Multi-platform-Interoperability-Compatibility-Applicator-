@@ -91,7 +91,8 @@ pub fn assess(
             return verdict;
         }
     }
-    let game_specific = game_result.is_some_and(|result| result.authorization != Authorization::Unknown);
+    let game_specific =
+        game_result.is_some_and(|result| result.authorization != Authorization::Unknown);
     let narrow = |verdict: &mut RouteVerdict, authorization: Authorization| {
         if !game_specific && rank(authorization) > rank(verdict.authorization) {
             verdict.authorization = authorization;
@@ -113,7 +114,9 @@ pub fn assess(
         }
         match policy.authorization {
             Authorization::Forbidden => {
-                verdict.reasons.push(format!("{anticheat}: {}", policy.summary));
+                verdict
+                    .reasons
+                    .push(format!("{anticheat}: {}", policy.summary));
                 if !game_specific {
                     verdict.authorization = Authorization::Forbidden;
                     verdict.official_prohibition |= policy
@@ -147,11 +150,15 @@ pub fn assess(
                 narrow(&mut verdict, Authorization::PerGame);
             }
             Authorization::Unknown => {
-                verdict.warnings.push(format!("{anticheat}: {}", policy.summary));
+                verdict
+                    .warnings
+                    .push(format!("{anticheat}: {}", policy.summary));
                 narrow(&mut verdict, Authorization::Unknown);
             }
             Authorization::Planned | Authorization::Authorized => {
-                verdict.reasons.push(format!("{anticheat}: {}", policy.summary));
+                verdict
+                    .reasons
+                    .push(format!("{anticheat}: {}", policy.summary));
             }
         }
     }
@@ -194,26 +201,56 @@ mod tests {
     #[test]
     fn unknown_games_are_judged_by_their_anticheat() {
         let database = Database::builtin();
-        let vanguard = assess(&database, None, Some(&scan(AntiCheat::RiotVanguard, false)), Route::LinuxVm);
+        let vanguard = assess(
+            &database,
+            None,
+            Some(&scan(AntiCheat::RiotVanguard, false)),
+            Route::LinuxVm,
+        );
         assert!(vanguard.forbidden() && vanguard.official_prohibition);
         // Riot's Linux statement is community-sourced: forbidden, but a warning-level block.
-        let proton = assess(&database, None, Some(&scan(AntiCheat::RiotVanguard, false)), Route::LinuxProton);
+        let proton = assess(
+            &database,
+            None,
+            Some(&scan(AntiCheat::RiotVanguard, false)),
+            Route::LinuxProton,
+        );
         assert!(proton.forbidden());
         assert!(!proton.official_prohibition);
 
-        let eac_opted_in = assess(&database, None, Some(&scan(AntiCheat::EasyAntiCheat, true)), Route::LinuxProton);
+        let eac_opted_in = assess(
+            &database,
+            None,
+            Some(&scan(AntiCheat::EasyAntiCheat, true)),
+            Route::LinuxProton,
+        );
         assert_eq!(eac_opted_in.authorization, Authorization::PerGame);
         assert!(eac_opted_in.warnings.is_empty());
         assert!(eac_opted_in.reasons[0].contains("easyanticheat_x64.so"));
 
-        let eac_not = assess(&database, None, Some(&scan(AntiCheat::EasyAntiCheat, false)), Route::LinuxProton);
+        let eac_not = assess(
+            &database,
+            None,
+            Some(&scan(AntiCheat::EasyAntiCheat, false)),
+            Route::LinuxProton,
+        );
         assert!(eac_not.warnings[0].contains("probably not enabled"));
 
-        let clean = assess(&database, None, Some(&AntiCheatScan::default()), Route::LinuxProton);
+        let clean = assess(
+            &database,
+            None,
+            Some(&AntiCheatScan::default()),
+            Route::LinuxProton,
+        );
         assert_eq!(clean.authorization, Authorization::Authorized);
         assert!(clean.warnings.is_empty());
 
-        let gameguard = assess(&database, None, Some(&scan(AntiCheat::NProtectGameGuard, false)), Route::LinuxProton);
+        let gameguard = assess(
+            &database,
+            None,
+            Some(&scan(AntiCheat::NProtectGameGuard, false)),
+            Route::LinuxProton,
+        );
         assert!(gameguard.warnings[0].contains("no verified policy"));
     }
 }

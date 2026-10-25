@@ -11,7 +11,10 @@ pub mod decide;
 pub mod policy;
 pub mod prepare;
 
-pub use decide::{Backend, Blocker, BlockerKind, Candidate, Decision, Inputs, Runner, Target, analyze, analyze_with, decide};
+pub use decide::{
+    Backend, Blocker, BlockerKind, Candidate, Decision, Inputs, Runner, Target, analyze,
+    analyze_with, decide,
+};
 pub use prepare::prepare;
 
 #[cfg(test)]
@@ -19,7 +22,9 @@ mod tests {
     use std::path::PathBuf;
 
     use mica_compat::{Database, Route};
-    use mica_inspect::{AntiCheat, AntiCheatScan, AntiCheatSignal, Arch, Confidence, inspect_bytes};
+    use mica_inspect::{
+        AntiCheat, AntiCheatScan, AntiCheatSignal, Arch, Confidence, inspect_bytes,
+    };
     use mica_probe::{HostProfile, Os};
     use mica_runtime::{Config, Runtime, RuntimeKind, Runtimes};
 
@@ -71,7 +76,13 @@ mod tests {
         }
     }
 
-    fn decide_on(host: &HostProfile, runtimes: &Runtimes, config: &Config, target: &Target, forced: Option<Backend>) -> Decision {
+    fn decide_on(
+        host: &HostProfile,
+        runtimes: &Runtimes,
+        config: &Config,
+        target: &Target,
+        forced: Option<Backend>,
+    ) -> Decision {
         let database = Database::builtin();
         decide(
             &Inputs {
@@ -89,7 +100,12 @@ mod tests {
     fn windows_programs_on_linux_prefer_umu_then_wine() {
         let linux = host(Os::Linux, Arch::X86_64);
         let config = Config::default();
-        let app = target("tool.exe", &pe(0x8664), None, Some(AntiCheatScan::default()));
+        let app = target(
+            "tool.exe",
+            &pe(0x8664),
+            None,
+            Some(AntiCheatScan::default()),
+        );
 
         let both = runtimes(&[RuntimeKind::Umu, RuntimeKind::Wine]);
         let decision = decide_on(&linux, &both, &config, &app, None);
@@ -99,17 +115,28 @@ mod tests {
 
         let wine_only = runtimes(&[RuntimeKind::Wine]);
         let decision = decide_on(&linux, &wine_only, &config, &app, None);
-        assert!(matches!(decision.chosen().unwrap().runner, Some(Runner::Wine { .. })));
+        assert!(matches!(
+            decision.chosen().unwrap().runner,
+            Some(Runner::Wine { .. })
+        ));
 
         let none = runtimes(&[]);
         let decision = decide_on(&linux, &none, &config, &app, None);
         assert!(decision.chosen().is_none());
-        let windows = decision.candidates.iter().find(|c| c.backend == Backend::WindowsCompat).unwrap();
+        let windows = decision
+            .candidates
+            .iter()
+            .find(|c| c.backend == Backend::WindowsCompat)
+            .unwrap();
         assert_eq!(windows.blockers[0].kind, BlockerKind::MissingRuntime);
         assert!(!windows.setup.is_empty());
 
         // The VM is offered but not configured.
-        let vm = decision.candidates.iter().find(|c| c.backend == Backend::VirtualMachine).unwrap();
+        let vm = decision
+            .candidates
+            .iter()
+            .find(|c| c.backend == Backend::VirtualMachine)
+            .unwrap();
         assert_eq!(vm.blockers[0].kind, BlockerKind::NotConfigured);
     }
 
@@ -123,30 +150,56 @@ mod tests {
         let decision = decide_on(&linux, &all, &config, &apex, None);
         assert!(decision.chosen().is_none(), "{:#?}", decision.candidates);
         assert_eq!(decision.anticheats, vec![AntiCheat::EaJavelin]);
-        let proton = decision.candidates.iter().find(|c| c.backend == Backend::WindowsCompat).unwrap();
-        assert!(proton.blockers.iter().any(|b| b.kind == BlockerKind::Policy && !b.overridable));
-        let vm = decision.candidates.iter().find(|c| c.backend == Backend::VirtualMachine).unwrap();
+        let proton = decision
+            .candidates
+            .iter()
+            .find(|c| c.backend == Backend::WindowsCompat)
+            .unwrap();
+        assert!(
+            proton
+                .blockers
+                .iter()
+                .any(|b| b.kind == BlockerKind::Policy && !b.overridable)
+        );
+        let vm = decision
+            .candidates
+            .iter()
+            .find(|c| c.backend == Backend::VirtualMachine)
+            .unwrap();
         assert!(vm.blockers.iter().any(|b| b.kind == BlockerKind::Policy));
 
         let forced = decide_on(&linux, &all, &config, &apex, Some(Backend::WindowsCompat));
-        assert!(forced.chosen().is_none(), "official prohibitions are not overridable");
+        assert!(
+            forced.chosen().is_none(),
+            "official prohibitions are not overridable"
+        );
     }
 
     #[test]
     fn fortnite_offers_cloud_and_points_at_readiness() {
         let linux = host(Os::Linux, Arch::X86_64);
         let config = Config::default();
-        let fortnite = target(
-            "FortniteLauncher.exe",
-            &pe(0x8664),
-            Some("fortnite"),
+        let fortnite = target("FortniteLauncher.exe", &pe(0x8664), Some("fortnite"), None);
+        let decision = decide_on(
+            &linux,
+            &runtimes(&[RuntimeKind::Umu]),
+            &config,
+            &fortnite,
             None,
         );
-        let decision = decide_on(&linux, &runtimes(&[RuntimeKind::Umu]), &config, &fortnite, None);
         assert!(decision.chosen().is_none());
-        let remote = decision.candidates.iter().find(|c| c.backend == Backend::Remote).unwrap();
+        let remote = decision
+            .candidates
+            .iter()
+            .find(|c| c.backend == Backend::Remote)
+            .unwrap();
         assert!(remote.eligible());
-        assert!(decision.notes.iter().any(|note| note.contains("mica compatibility fortnite")));
+        assert!(
+            decision
+                .notes
+                .iter()
+                .any(|note| note.contains("mica compatibility fortnite"))
+        );
     }
 
     #[test]
@@ -164,17 +217,39 @@ mod tests {
             truncated: false,
         };
         let opted_in = target("Game.exe", &pe(0x8664), None, Some(scan(true)));
-        let decision = decide_on(&linux, &runtimes(&[RuntimeKind::Umu]), &config, &opted_in, None);
+        let decision = decide_on(
+            &linux,
+            &runtimes(&[RuntimeKind::Umu]),
+            &config,
+            &opted_in,
+            None,
+        );
         let chosen = decision.chosen().unwrap();
         assert_eq!(chosen.backend, Backend::WindowsCompat);
-        assert!(chosen.warnings.iter().all(|warning| !warning.contains("probably not enabled")));
+        assert!(
+            chosen
+                .warnings
+                .iter()
+                .all(|warning| !warning.contains("probably not enabled"))
+        );
         // A VM is never chosen for a protected game without permission.
-        let vm = decision.candidates.iter().find(|c| c.backend == Backend::VirtualMachine).unwrap();
+        let vm = decision
+            .candidates
+            .iter()
+            .find(|c| c.backend == Backend::VirtualMachine)
+            .unwrap();
         assert!(vm.blockers.iter().any(|b| b.kind == BlockerKind::Policy));
 
         let not = target("Game.exe", &pe(0x8664), None, Some(scan(false)));
         let decision = decide_on(&linux, &runtimes(&[RuntimeKind::Umu]), &config, &not, None);
-        assert!(decision.chosen().unwrap().warnings.iter().any(|warning| warning.contains("probably not enabled")));
+        assert!(
+            decision
+                .chosen()
+                .unwrap()
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("probably not enabled"))
+        );
     }
 
     #[test]
@@ -182,32 +257,81 @@ mod tests {
         let config = Config::default();
         let windows = host(Os::Windows, Arch::X86_64);
         let exe = target("app.exe", &pe(0x8664), None, None);
-        assert_eq!(decide_on(&windows, &runtimes(&[]), &config, &exe, None).chosen().unwrap().backend, Backend::Native);
+        assert_eq!(
+            decide_on(&windows, &runtimes(&[]), &config, &exe, None)
+                .chosen()
+                .unwrap()
+                .backend,
+            Backend::Native
+        );
 
         let elf = crate::tests::elf();
         let linux_program = target("tool", &elf, None, None);
-        let decision = decide_on(&windows, &runtimes(&[RuntimeKind::Wsl]), &config, &linux_program, None);
+        let decision = decide_on(
+            &windows,
+            &runtimes(&[RuntimeKind::Wsl]),
+            &config,
+            &linux_program,
+            None,
+        );
         assert_eq!(decision.chosen().unwrap().backend, Backend::Wsl);
         let decision = decide_on(&windows, &runtimes(&[]), &config, &linux_program, None);
         assert!(decision.chosen().is_none());
 
         let linux = host(Os::Linux, Arch::X86_64);
-        assert_eq!(decide_on(&linux, &runtimes(&[]), &config, &linux_program, None).chosen().unwrap().backend, Backend::Native);
+        assert_eq!(
+            decide_on(&linux, &runtimes(&[]), &config, &linux_program, None)
+                .chosen()
+                .unwrap()
+                .backend,
+            Backend::Native
+        );
 
         let arm_linux = host(Os::Linux, Arch::Aarch64);
-        let decision = decide_on(&arm_linux, &runtimes(&[RuntimeKind::Fex]), &config, &linux_program, None);
+        let decision = decide_on(
+            &arm_linux,
+            &runtimes(&[RuntimeKind::Fex]),
+            &config,
+            &linux_program,
+            None,
+        );
         assert_eq!(decision.chosen().unwrap().backend, Backend::ArchTranslation);
 
         let component = target("game.wasm", b"\0asm\x0d\0\x01\0", None, None);
-        let decision = decide_on(&linux, &runtimes(&[RuntimeKind::PortableHost]), &config, &component, None);
+        let decision = decide_on(
+            &linux,
+            &runtimes(&[RuntimeKind::PortableHost]),
+            &config,
+            &component,
+            None,
+        );
         assert_eq!(decision.chosen().unwrap().backend, Backend::PortableHost);
 
         let mac = host(Os::MacOs, Arch::Aarch64);
-        let decision = decide_on(&mac, &runtimes(&[RuntimeKind::Crossover, RuntimeKind::Rosetta]), &config, &exe, None);
-        assert!(matches!(decision.chosen().unwrap().runner, Some(Runner::Crossover { .. })));
-        let decision = decide_on(&linux, &runtimes(&[]), &config, &target("App", &mac_binary(), None, None), None);
+        let decision = decide_on(
+            &mac,
+            &runtimes(&[RuntimeKind::Crossover, RuntimeKind::Rosetta]),
+            &config,
+            &exe,
+            None,
+        );
+        assert!(matches!(
+            decision.chosen().unwrap().runner,
+            Some(Runner::Crossover { .. })
+        ));
+        let decision = decide_on(
+            &linux,
+            &runtimes(&[]),
+            &config,
+            &target("App", &mac_binary(), None, None),
+            None,
+        );
         assert!(decision.chosen().is_none());
-        assert!(decision.candidates[0].blockers[0].message.contains("macOS programs need macOS"));
+        assert!(
+            decision.candidates[0].blockers[0]
+                .message
+                .contains("macOS programs need macOS")
+        );
     }
 
     #[test]
@@ -220,7 +344,12 @@ mod tests {
         assert!(report.readiness.is_some());
         assert_eq!(report.routes[0].0, Route::LinuxNative);
         assert!(report.recommendation[0].starts_with("Not playable on Linux today"));
-        assert!(report.recommendation.iter().any(|line| line.contains("GeForce NOW")));
+        assert!(
+            report
+                .recommendation
+                .iter()
+                .any(|line| line.contains("GeForce NOW"))
+        );
 
         let apex = database.find("apex").unwrap();
         let report = compatibility::report(&database, apex, &linux);

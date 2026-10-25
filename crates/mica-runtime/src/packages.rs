@@ -74,19 +74,54 @@ fn packages(feature: Feature, family: Family) -> Option<(&'static [&'static str]
     use Family::*;
     use Feature::*;
     let entry: (&[&str], &str) = match (feature, family) {
-        (Windows, Debian) => (&["wine", "winetricks"], ""),
-        (Windows, Fedora) => (&["wine", "winetricks"], ""),
-        (Windows, Arch) => (&["wine", "winetricks"], "Arch's wine package needs the [multilib] repository enabled in /etc/pacman.conf."),
-        (Windows, Suse) => (&["wine", "winetricks"], ""),
-        (Windows, Alpine) => (&["wine"], ""),
-        (Windows, Void) => (&["wine", "winetricks"], ""),
-        (Vulkan, Debian) => (&["mesa-vulkan-drivers", "vulkan-tools"], "NVIDIA's proprietary driver provides its own Vulkan driver."),
-        (Vulkan, Fedora) => (&["mesa-vulkan-drivers", "vulkan-tools"], "NVIDIA's proprietary driver provides its own Vulkan driver."),
-        (Vulkan, Arch) => (&["vulkan-icd-loader", "vulkan-tools"], "Also install your GPU's driver: vulkan-radeon (AMD), vulkan-intel (Intel), or nvidia-utils (NVIDIA)."),
-        (Vulkan, Suse) => (&["libvulkan1", "vulkan-tools", "libvulkan_radeon", "libvulkan_intel"], ""),
-        (Virtualization, Debian) => (&["qemu-system-x86", "libvirt-daemon-system", "virt-manager", "ovmf", "swtpm"], "Add yourself to the libvirt group afterwards: sudo usermod -aG libvirt $USER"),
+        (Windows, Debian | Fedora | Suse | Alpine | Void) => (&["wine"], ""),
+        (Windows, Arch) => (
+            &["wine"],
+            "Arch's wine package needs the [multilib] repository enabled in /etc/pacman.conf.",
+        ),
+        (Vulkan, Debian) => (
+            &["mesa-vulkan-drivers", "vulkan-tools"],
+            "NVIDIA's proprietary driver provides its own Vulkan driver.",
+        ),
+        (Vulkan, Fedora) => (
+            &["mesa-vulkan-drivers", "vulkan-tools"],
+            "NVIDIA's proprietary driver provides its own Vulkan driver.",
+        ),
+        (Vulkan, Arch) => (
+            &["vulkan-icd-loader", "vulkan-tools"],
+            "Also install your GPU's driver: vulkan-radeon (AMD), vulkan-intel (Intel), or nvidia-utils (NVIDIA).",
+        ),
+        (Vulkan, Suse) => (
+            &[
+                "libvulkan1",
+                "vulkan-tools",
+                "libvulkan_radeon",
+                "libvulkan_intel",
+            ],
+            "",
+        ),
+        (Virtualization, Debian) => (
+            &[
+                "qemu-system-x86",
+                "libvirt-daemon-system",
+                "virt-manager",
+                "ovmf",
+                "swtpm",
+            ],
+            "Add yourself to the libvirt group afterwards: sudo usermod -aG libvirt $USER",
+        ),
         (Virtualization, Fedora) => (&["@virtualization", "swtpm"], ""),
-        (Virtualization, Arch) => (&["qemu-full", "libvirt", "virt-manager", "edk2-ovmf", "swtpm", "dnsmasq"], "Then enable libvirt: sudo systemctl enable --now libvirtd"),
+        (Virtualization, Arch) => (
+            &[
+                "qemu-full",
+                "libvirt",
+                "virt-manager",
+                "edk2-ovmf",
+                "swtpm",
+                "dnsmasq",
+            ],
+            "Then enable libvirt: sudo systemctl enable --now libvirtd",
+        ),
         (Virtualization, Suse) => (&["patterns-server-kvm_server", "virt-manager", "swtpm"], ""),
         (SecurityTools, Debian | Fedora | Suse) => (&["mokutil", "tpm2-tools"], ""),
         (SecurityTools, Arch) => (&["tpm2-tools"], "mokutil is in the AUR on Arch."),
@@ -137,7 +172,9 @@ pub fn plan(profile: &HostProfile, feature: Feature) -> InstallPlan {
                             .into(),
                     ];
                 }
-                _ => plan.notes.push(format!("{feature} need nothing extra on Windows.")),
+                _ => plan
+                    .notes
+                    .push(format!("{feature} need nothing extra on Windows.")),
             }
             return plan;
         }
@@ -163,17 +200,23 @@ pub fn plan(profile: &HostProfile, feature: Feature) -> InstallPlan {
                         plan.manager = Some(PackageManager::Homebrew);
                         plan.packages = vec!["lima".into()];
                         plan.commands = vec![words("brew install lima")];
-                        plan.notes.push("Lima runs Linux virtual machines on macOS.".into());
+                        plan.notes
+                            .push("Lima runs Linux virtual machines on macOS.".into());
                     } else {
-                        plan.manual.push("Install Homebrew (https://brew.sh), then: brew install lima".into());
+                        plan.manual.push(
+                            "Install Homebrew (https://brew.sh), then: brew install lima".into(),
+                        );
                     }
                 }
-                _ => plan.notes.push(format!("{feature} need nothing extra on macOS.")),
+                _ => plan
+                    .notes
+                    .push(format!("{feature} need nothing extra on macOS.")),
             }
             return plan;
         }
         Os::Other => {
-            plan.manual.push("MICA does not manage packages on this operating system.".into());
+            plan.manual
+                .push("MICA does not manage packages on this operating system.".into());
             return plan;
         }
         Os::Linux => {}
@@ -184,7 +227,8 @@ pub fn plan(profile: &HostProfile, feature: Feature) -> InstallPlan {
         return plan;
     }
     let Some(distro) = &profile.distro else {
-        plan.manual.push("MICA could not identify the distribution (no /etc/os-release).".into());
+        plan.manual
+            .push("MICA could not identify the distribution (no /etc/os-release).".into());
         return plan;
     };
     if profile.immutable.is_some() {
@@ -196,7 +240,10 @@ pub fn plan(profile: &HostProfile, feature: Feature) -> InstallPlan {
                     .into(),
             ],
             _ => vec![
-                format!("This is an image-based system ({}).", profile.immutable.clone().unwrap_or_default()),
+                format!(
+                    "This is an image-based system ({}).",
+                    profile.immutable.clone().unwrap_or_default()
+                ),
                 "Prefer Flatpak applications (for example Bottles or Heroic for Windows \
                  programs), or layer packages with your system's tool (rpm-ostree install)."
                     .into(),
@@ -274,17 +321,40 @@ mod tests {
 
     #[test]
     fn plans_per_distribution() {
-        let ubuntu = plan(&linux("ubuntu", Family::Debian, &[PackageManager::Apt]), Feature::Windows);
+        let ubuntu = plan(
+            &linux("ubuntu", Family::Debian, &[PackageManager::Apt]),
+            Feature::Windows,
+        );
         assert_eq!(ubuntu.commands[0], words("sudo apt-get update"));
-        assert_eq!(ubuntu.commands[1], words("sudo apt-get install -y wine winetricks"));
+        assert_eq!(ubuntu.commands[1], words("sudo apt-get install -y wine"));
 
-        let fedora = plan(&linux("fedora", Family::Fedora, &[PackageManager::Dnf, PackageManager::Flatpak]), Feature::Virtualization);
-        assert_eq!(fedora.commands, vec![words("sudo dnf install -y @virtualization swtpm")]);
+        let fedora = plan(
+            &linux(
+                "fedora",
+                Family::Fedora,
+                &[PackageManager::Dnf, PackageManager::Flatpak],
+            ),
+            Feature::Virtualization,
+        );
+        assert_eq!(
+            fedora.commands,
+            vec![words("sudo dnf install -y @virtualization swtpm")]
+        );
 
-        let arch = plan(&linux("arch", Family::Arch, &[PackageManager::Pacman]), Feature::Windows);
+        let arch = plan(
+            &linux("arch", Family::Arch, &[PackageManager::Pacman]),
+            Feature::Windows,
+        );
         assert!(arch.notes[0].contains("multilib"));
 
-        let suse = plan(&linux("opensuse-tumbleweed", Family::Suse, &[PackageManager::Zypper]), Feature::Vulkan);
+        let suse = plan(
+            &linux(
+                "opensuse-tumbleweed",
+                Family::Suse,
+                &[PackageManager::Zypper],
+            ),
+            Feature::Vulkan,
+        );
         assert_eq!(suse.manager, Some(PackageManager::Zypper));
 
         let mut nixos = linux("nixos", Family::Nix, &[PackageManager::Nix]);
@@ -293,7 +363,10 @@ mod tests {
         assert!(nix.commands.is_empty());
         assert!(nix.manual[0].contains("configuration.nix"));
 
-        let gentoo = plan(&linux("gentoo", Family::Gentoo, &[PackageManager::Emerge]), Feature::Windows);
+        let gentoo = plan(
+            &linux("gentoo", Family::Gentoo, &[PackageManager::Emerge]),
+            Feature::Windows,
+        );
         assert!(gentoo.commands.is_empty());
         assert!(!gentoo.manual.is_empty());
     }
@@ -301,7 +374,12 @@ mod tests {
     #[test]
     fn windows_and_macos_get_instructions() {
         let windows = plan(&HostProfile::empty(Os::Windows), Feature::Linux);
-        assert!(windows.manual.iter().any(|line| line.contains("wsl --install")));
+        assert!(
+            windows
+                .manual
+                .iter()
+                .any(|line| line.contains("wsl --install"))
+        );
         let mac = plan(&HostProfile::empty(Os::MacOs), Feature::Windows);
         assert!(mac.manual[0].contains("CrossOver"));
         assert!(mac.commands.is_empty());

@@ -67,7 +67,9 @@ pub struct VmConfig {
 impl Config {
     pub fn load(path: &Path) -> Result<Config, String> {
         match std::fs::read_to_string(path) {
-            Ok(text) => toml::from_str(&text).map_err(|error| format!("{}: {error}", path.display())),
+            Ok(text) => {
+                toml::from_str(&text).map_err(|error| format!("{}: {error}", path.display()))
+            }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Config::default()),
             Err(error) => Err(format!("{}: {error}", path.display())),
         }
@@ -83,7 +85,8 @@ impl Config {
 
     /// Set one dotted key from text, as `mica config set` does.
     pub fn set(&mut self, key: &str, value: &str) -> Result<(), String> {
-        let optional = |value: &str| (!value.is_empty() && value != "none").then(|| value.to_string());
+        let optional =
+            |value: &str| (!value.is_empty() && value != "none").then(|| value.to_string());
         match key {
             "detect_games" => {
                 self.detect_games = value
@@ -132,7 +135,9 @@ pub struct Apps {
 impl Apps {
     pub fn load(path: &Path) -> Result<Apps, String> {
         match std::fs::read_to_string(path) {
-            Ok(text) => toml::from_str(&text).map_err(|error| format!("{}: {error}", path.display())),
+            Ok(text) => {
+                toml::from_str(&text).map_err(|error| format!("{}: {error}", path.display()))
+            }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Apps::default()),
             Err(error) => Err(format!("{}: {error}", path.display())),
         }
@@ -140,7 +145,10 @@ impl Apps {
 
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
         let text = toml::to_string_pretty(self).map_err(std::io::Error::other)?;
-        write_atomically(path, &format!("# Applications installed through MICA.\n{text}"))
+        write_atomically(
+            path,
+            &format!("# Applications installed through MICA.\n{text}"),
+        )
     }
 
     pub fn find(&self, query: &str) -> Option<&AppRecord> {
@@ -180,7 +188,13 @@ pub fn app_id(name: &str, source: &Path) -> String {
     use sha2::{Digest, Sha256};
     let mut slug: String = name
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
         .collect();
     while slug.contains("--") {
         slug = slug.replace("--", "-");
@@ -191,7 +205,10 @@ pub fn app_id(name: &str, source: &Path) -> String {
     let digest = Sha256::digest(source.to_string_lossy().as_bytes());
     format!(
         "{slug}-{}",
-        digest[..4].iter().map(|byte| format!("{byte:02x}")).collect::<String>()
+        digest[..4]
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>()
     )
 }
 

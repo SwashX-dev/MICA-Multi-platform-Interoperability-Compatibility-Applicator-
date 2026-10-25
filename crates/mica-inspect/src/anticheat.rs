@@ -59,7 +59,9 @@ impl AntiCheat {
     }
 
     pub fn from_id(id: &str) -> Option<AntiCheat> {
-        AntiCheat::ALL.into_iter().find(|anticheat| anticheat.id() == id)
+        AntiCheat::ALL
+            .into_iter()
+            .find(|anticheat| anticheat.id() == id)
     }
 }
 
@@ -112,7 +114,8 @@ pub struct AntiCheatScan {
 impl AntiCheatScan {
     /// Distinct anti-cheat systems found, strongest evidence first.
     pub fn detected(&self) -> Vec<AntiCheat> {
-        let mut found: Vec<AntiCheat> = self.signals.iter().map(|signal| signal.anticheat).collect();
+        let mut found: Vec<AntiCheat> =
+            self.signals.iter().map(|signal| signal.anticheat).collect();
         found.sort();
         found.dedup();
         found
@@ -126,32 +129,136 @@ enum Marker {
 }
 
 const MARKERS: &[(Marker, AntiCheat, Confidence)] = &[
-    (Marker::Dir("easyanticheat"), AntiCheat::EasyAntiCheat, Confidence::High),
-    (Marker::File("easyanticheat_x64.dll"), AntiCheat::EasyAntiCheat, Confidence::High),
-    (Marker::File("easyanticheat_x86.dll"), AntiCheat::EasyAntiCheat, Confidence::High),
-    (Marker::File("easyanticheat_x64.so"), AntiCheat::EasyAntiCheat, Confidence::High),
-    (Marker::File("easyanticheat_setup.exe"), AntiCheat::EasyAntiCheat, Confidence::High),
-    (Marker::File("easyanticheat_eos_setup.exe"), AntiCheat::EasyAntiCheat, Confidence::High),
-    (Marker::File("start_protected_game.exe"), AntiCheat::EasyAntiCheat, Confidence::Medium),
-    (Marker::Dir("battleye"), AntiCheat::BattlEye, Confidence::High),
-    (Marker::File("beservice.exe"), AntiCheat::BattlEye, Confidence::High),
-    (Marker::File("beservice_x64.exe"), AntiCheat::BattlEye, Confidence::High),
-    (Marker::File("beclient.dll"), AntiCheat::BattlEye, Confidence::High),
-    (Marker::File("beclient_x64.dll"), AntiCheat::BattlEye, Confidence::High),
-    (Marker::File("eaanticheat.gameservicelauncher.exe"), AntiCheat::EaJavelin, Confidence::High),
-    (Marker::File("eaanticheat.installer.exe"), AntiCheat::EaJavelin, Confidence::High),
-    (Marker::Prefix("eaanticheat."), AntiCheat::EaJavelin, Confidence::Medium),
-    (Marker::File("vgk.sys"), AntiCheat::RiotVanguard, Confidence::High),
-    (Marker::File("vgc.exe"), AntiCheat::RiotVanguard, Confidence::High),
-    (Marker::Dir("gameguard"), AntiCheat::NProtectGameGuard, Confidence::High),
-    (Marker::File("gamemon.des"), AntiCheat::NProtectGameGuard, Confidence::High),
-    (Marker::File("gameguard.des"), AntiCheat::NProtectGameGuard, Confidence::High),
-    (Marker::Dir("xigncode"), AntiCheat::Xigncode3, Confidence::High),
-    (Marker::File("x3.xem"), AntiCheat::Xigncode3, Confidence::High),
-    (Marker::File("pbsvc.exe"), AntiCheat::PunkBuster, Confidence::Medium),
-    (Marker::File("pbcl.dll"), AntiCheat::PunkBuster, Confidence::Medium),
-    (Marker::File("mhyprot2.sys"), AntiCheat::Mhyprot, Confidence::High),
-    (Marker::File("mhyprot3.sys"), AntiCheat::Mhyprot, Confidence::High),
+    (
+        Marker::Dir("easyanticheat"),
+        AntiCheat::EasyAntiCheat,
+        Confidence::High,
+    ),
+    (
+        Marker::File("easyanticheat_x64.dll"),
+        AntiCheat::EasyAntiCheat,
+        Confidence::High,
+    ),
+    (
+        Marker::File("easyanticheat_x86.dll"),
+        AntiCheat::EasyAntiCheat,
+        Confidence::High,
+    ),
+    (
+        Marker::File("easyanticheat_x64.so"),
+        AntiCheat::EasyAntiCheat,
+        Confidence::High,
+    ),
+    (
+        Marker::File("easyanticheat_setup.exe"),
+        AntiCheat::EasyAntiCheat,
+        Confidence::High,
+    ),
+    (
+        Marker::File("easyanticheat_eos_setup.exe"),
+        AntiCheat::EasyAntiCheat,
+        Confidence::High,
+    ),
+    (
+        Marker::File("start_protected_game.exe"),
+        AntiCheat::EasyAntiCheat,
+        Confidence::Medium,
+    ),
+    (
+        Marker::Dir("battleye"),
+        AntiCheat::BattlEye,
+        Confidence::High,
+    ),
+    (
+        Marker::File("beservice.exe"),
+        AntiCheat::BattlEye,
+        Confidence::High,
+    ),
+    (
+        Marker::File("beservice_x64.exe"),
+        AntiCheat::BattlEye,
+        Confidence::High,
+    ),
+    (
+        Marker::File("beclient.dll"),
+        AntiCheat::BattlEye,
+        Confidence::High,
+    ),
+    (
+        Marker::File("beclient_x64.dll"),
+        AntiCheat::BattlEye,
+        Confidence::High,
+    ),
+    (
+        Marker::File("eaanticheat.gameservicelauncher.exe"),
+        AntiCheat::EaJavelin,
+        Confidence::High,
+    ),
+    (
+        Marker::File("eaanticheat.installer.exe"),
+        AntiCheat::EaJavelin,
+        Confidence::High,
+    ),
+    (
+        Marker::Prefix("eaanticheat."),
+        AntiCheat::EaJavelin,
+        Confidence::Medium,
+    ),
+    (
+        Marker::File("vgk.sys"),
+        AntiCheat::RiotVanguard,
+        Confidence::High,
+    ),
+    (
+        Marker::File("vgc.exe"),
+        AntiCheat::RiotVanguard,
+        Confidence::High,
+    ),
+    (
+        Marker::Dir("gameguard"),
+        AntiCheat::NProtectGameGuard,
+        Confidence::High,
+    ),
+    (
+        Marker::File("gamemon.des"),
+        AntiCheat::NProtectGameGuard,
+        Confidence::High,
+    ),
+    (
+        Marker::File("gameguard.des"),
+        AntiCheat::NProtectGameGuard,
+        Confidence::High,
+    ),
+    (
+        Marker::Dir("xigncode"),
+        AntiCheat::Xigncode3,
+        Confidence::High,
+    ),
+    (
+        Marker::File("x3.xem"),
+        AntiCheat::Xigncode3,
+        Confidence::High,
+    ),
+    (
+        Marker::File("pbsvc.exe"),
+        AntiCheat::PunkBuster,
+        Confidence::Medium,
+    ),
+    (
+        Marker::File("pbcl.dll"),
+        AntiCheat::PunkBuster,
+        Confidence::Medium,
+    ),
+    (
+        Marker::File("mhyprot2.sys"),
+        AntiCheat::Mhyprot,
+        Confidence::High,
+    ),
+    (
+        Marker::File("mhyprot3.sys"),
+        AntiCheat::Mhyprot,
+        Confidence::High,
+    ),
 ];
 
 /// Most directory entries examined per scan; a game folder rarely has more.
@@ -249,7 +356,11 @@ mod tests {
         let scan = scan_dir(&root).unwrap();
         assert_eq!(scan.detected(), vec![AntiCheat::EasyAntiCheat]);
         assert!(scan.eac_proton_library);
-        assert!(scan.signals.iter().any(|signal| signal.marker == "EasyAntiCheat"));
+        assert!(
+            scan.signals
+                .iter()
+                .any(|signal| signal.marker == "EasyAntiCheat")
+        );
         std::fs::remove_dir_all(&root).unwrap();
     }
 
@@ -259,7 +370,10 @@ mod tests {
         touch(&root, "BattlEye/BEClient_x64.dll");
         touch(&root, "Binaries/Win64/EAAntiCheat.GameServiceLauncher.exe");
         let scan = scan_dir(&root).unwrap();
-        assert_eq!(scan.detected(), vec![AntiCheat::BattlEye, AntiCheat::EaJavelin]);
+        assert_eq!(
+            scan.detected(),
+            vec![AntiCheat::BattlEye, AntiCheat::EaJavelin]
+        );
         assert!(!scan.eac_proton_library);
         std::fs::remove_dir_all(&root).unwrap();
     }

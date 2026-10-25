@@ -58,7 +58,10 @@ pub const EAC_LINUX_V2: &[WellKnownKey] = &[
     WellKnownKey {
         name: "Rocky Linux Secure Boot Root CA",
         used_by: "Rocky Linux",
-        matches: &["rocky linux secure boot root ca", "rocky enterprise software foundation secure boot"],
+        matches: &[
+            "rocky linux secure boot root ca",
+            "rocky enterprise software foundation secure boot",
+        ],
     },
     WellKnownKey {
         name: "Microsoft UEFI CA",
@@ -77,9 +80,13 @@ pub const EAC_LINUX_V2: &[WellKnownKey] = &[
 #[serde(tag = "match", rename_all = "kebab-case")]
 pub enum KeyMatch {
     /// The certificate *is* a listed authority (by name).
-    Listed { key: WellKnownKey },
+    Listed {
+        key: WellKnownKey,
+    },
     /// The certificate was issued by a listed authority (by name).
-    IssuedByListed { key: WellKnownKey },
+    IssuedByListed {
+        key: WellKnownKey,
+    },
     NotListed,
 }
 

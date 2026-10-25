@@ -53,20 +53,30 @@ pub fn status(session: &Session, json: bool) -> Result<ExitCode> {
         return Ok(ExitCode::SUCCESS);
     }
     if runtimes.steam.is_empty() {
-        println!("Steam was not found. Install it from your distribution or https://store.steampowered.com/about/");
+        println!(
+            "Steam was not found. Install it from your distribution or https://store.steampowered.com/about/"
+        );
         return Ok(ExitCode::SUCCESS);
     }
     for install in &runtimes.steam {
         line(
             "steam",
-            format!("{}{}", install.root.display(), if install.flatpak { " (Flatpak)" } else { "" }),
+            format!(
+                "{}{}",
+                install.root.display(),
+                if install.flatpak { " (Flatpak)" } else { "" }
+            ),
         );
         for library in &install.libraries {
             more(format!("library {}", library.display()));
         }
         more(format!(
             "MICA compatibility tool: {}",
-            if tool_installed(&install.root) { "installed" } else { "not installed" }
+            if tool_installed(&install.root) {
+                "installed"
+            } else {
+                "not installed"
+            }
         ));
     }
     for (index, proton) in runtimes.protons.iter().enumerate() {
@@ -88,7 +98,10 @@ pub fn status(session: &Session, json: bool) -> Result<ExitCode> {
             .battleye
             .as_ref()
             .map(|path| path.display().to_string())
-            .unwrap_or_else(|| "Proton BattlEye Runtime not installed (Steam installs it for games that need it)".into()),
+            .unwrap_or_else(|| {
+                "Proton BattlEye Runtime not installed (Steam installs it for games that need it)"
+                    .into()
+            }),
     );
     println!();
     println!("To have MICA check a game each time it starts, set its launch options to:");
@@ -100,7 +113,11 @@ pub fn status(session: &Session, json: bool) -> Result<ExitCode> {
 fn identify(command: &[OsString]) -> (Option<String>, Option<PathBuf>) {
     let app_id = ["SteamAppId", "STEAM_COMPAT_APP_ID", "SteamGameId"]
         .iter()
-        .find_map(|key| std::env::var(key).ok().filter(|value| !value.is_empty() && value != "0"));
+        .find_map(|key| {
+            std::env::var(key)
+                .ok()
+                .filter(|value| !value.is_empty() && value != "0")
+        });
     let install = std::env::var_os("STEAM_COMPAT_INSTALL_PATH")
         .map(PathBuf::from)
         .filter(|path| path.is_dir())
@@ -111,7 +128,9 @@ fn identify(command: &[OsString]) -> (Option<String>, Option<PathBuf>) {
                 .find(|path| {
                     path.components()
                         .any(|part| part.as_os_str().eq_ignore_ascii_case("common"))
-                        && path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("exe"))
+                        && path
+                            .extension()
+                            .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"))
                 })
                 .and_then(|path| path.parent().map(Path::to_path_buf))
         });
@@ -135,7 +154,11 @@ fn check_game(session: &Session, app_id: Option<&str>, install: Option<&Path>) -
     } else {
         lines.push(format!(
             "{name}: anti-cheat {}.",
-            anticheats.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+            anticheats
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
     if verdict.forbidden() {
@@ -147,14 +170,14 @@ fn check_game(session: &Session, app_id: Option<&str>, install: Option<&Path>) -
         ));
     }
     lines.extend(verdict.warnings.iter().cloned());
-    if let Some(game) = game {
-        if game.eac_linux_v2.is_some() {
-            lines.push(format!(
-                "{} is Epic's EAC Linux v2 pilot: `mica security check --game {}` checks this \
+    if let Some(game) = game
+        && game.eac_linux_v2.is_some()
+    {
+        lines.push(format!(
+            "{} is Epic's EAC Linux v2 pilot: `mica security check --game {}` checks this \
                  system against Epic's requirements.",
-                game.name, game.id
-            ));
-        }
+            game.name, game.id
+        ));
     }
     lines
 }
@@ -225,7 +248,14 @@ pub fn remove_tool(session: &Session) -> Result<ExitCode> {
     let mut removed = false;
     for install in &session.runtimes().steam {
         if steam::remove_tool(&install.root)? {
-            line("removed", install.root.join("compatibilitytools.d").join(steam::MICA_TOOL_DIR).display());
+            line(
+                "removed",
+                install
+                    .root
+                    .join("compatibilitytools.d")
+                    .join(steam::MICA_TOOL_DIR)
+                    .display(),
+            );
             removed = true;
         }
     }
@@ -239,14 +269,19 @@ pub fn remove_tool(session: &Session) -> Result<ExitCode> {
 /// MICA's compatibility tool.
 pub fn run(session: &Session, verb: &str, args: &[String]) -> Result<ExitCode> {
     let runtimes = session.runtimes();
-    let tool = runtimes
-        .protons
-        .first()
-        .context("MICA's Steam tool needs a Proton build; install Proton from Steam's Tools library")?;
+    let tool = runtimes.protons.first().context(
+        "MICA's Steam tool needs a Proton build; install Proton from Steam's Tools library",
+    )?;
     let install = runtimes
         .steam
         .iter()
-        .find(|install| install.libraries.iter().any(|library| tool.dir.starts_with(library)) || tool.dir.starts_with(&install.root))
+        .find(|install| {
+            install
+                .libraries
+                .iter()
+                .any(|library| tool.dir.starts_with(library))
+                || tool.dir.starts_with(&install.root)
+        })
         .or_else(|| runtimes.steam.first())
         .context("Steam was not found")?;
     let launching = matches!(verb, "run" | "waitforexitandrun");
@@ -267,22 +302,23 @@ pub fn run(session: &Session, verb: &str, args: &[String]) -> Result<ExitCode> {
     // Steam's environment (STEAM_COMPAT_*) is inherited. Valve's anti-cheat
     // runtimes are added only for a game that ships that anti-cheat (and,
     // for EAC, its Proton library), and only if Steam has not set them.
-    let detected = scan.as_ref().map(|scan| scan.detected()).unwrap_or_default();
+    let detected = scan
+        .as_ref()
+        .map(|scan| scan.detected())
+        .unwrap_or_default();
     let eac_opted_in = scan.as_ref().is_some_and(|scan| scan.eac_proton_library);
     if std::env::var_os("PROTON_EAC_RUNTIME").is_none()
         && eac_opted_in
         && detected.contains(&mica_inspect::AntiCheat::EasyAntiCheat)
+        && let Some(path) = &runtimes.anticheat.eac
     {
-        if let Some(path) = &runtimes.anticheat.eac {
-            plan = plan.env("PROTON_EAC_RUNTIME", path.to_string_lossy());
-        }
+        plan = plan.env("PROTON_EAC_RUNTIME", path.to_string_lossy());
     }
     if std::env::var_os("PROTON_BATTLEYE_RUNTIME").is_none()
         && detected.contains(&mica_inspect::AntiCheat::BattlEye)
+        && let Some(path) = &runtimes.anticheat.battleye
     {
-        if let Some(path) = &runtimes.anticheat.battleye {
-            plan = plan.env("PROTON_BATTLEYE_RUNTIME", path.to_string_lossy());
-        }
+        plan = plan.env("PROTON_BATTLEYE_RUNTIME", path.to_string_lossy());
     }
     #[cfg(unix)]
     {

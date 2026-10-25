@@ -73,7 +73,10 @@ pub(crate) fn c_string(data: &[u8], offset: usize, max: usize) -> Option<String>
 
 /// Whether `needle` occurs anywhere in `haystack`.
 pub(crate) fn contains(haystack: &[u8], needle: &[u8]) -> bool {
-    !needle.is_empty() && haystack.windows(needle.len()).any(|window| window == needle)
+    !needle.is_empty()
+        && haystack
+            .windows(needle.len())
+            .any(|window| window == needle)
 }
 
 /// Like [`contains`], ignoring ASCII case.

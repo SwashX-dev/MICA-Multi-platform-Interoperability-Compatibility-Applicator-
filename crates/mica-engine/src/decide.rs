@@ -115,18 +115,46 @@ pub struct Blocker {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum Runner {
     Direct,
-    PortableHost { path: PathBuf },
-    DosBox { path: PathBuf },
-    Umu { path: PathBuf, proton: Option<CompatTool> },
-    Proton { tool: CompatTool },
-    Wine { path: PathBuf },
-    Crossover { path: PathBuf, bottle: String },
-    GamePortingToolkit { path: PathBuf },
-    Wsl { path: PathBuf },
-    Translator { path: PathBuf, name: String },
-    Lima { path: PathBuf },
-    Libvirt { domain: String, uri: String },
-    Cloud { providers: Vec<String> },
+    PortableHost {
+        path: PathBuf,
+    },
+    DosBox {
+        path: PathBuf,
+    },
+    Umu {
+        path: PathBuf,
+        proton: Option<CompatTool>,
+    },
+    Proton {
+        tool: CompatTool,
+    },
+    Wine {
+        path: PathBuf,
+    },
+    Crossover {
+        path: PathBuf,
+        bottle: String,
+    },
+    GamePortingToolkit {
+        path: PathBuf,
+    },
+    Wsl {
+        path: PathBuf,
+    },
+    Translator {
+        path: PathBuf,
+        name: String,
+    },
+    Lima {
+        path: PathBuf,
+    },
+    Libvirt {
+        domain: String,
+        uri: String,
+    },
+    Cloud {
+        providers: Vec<String>,
+    },
 }
 
 impl fmt::Display for Runner {
@@ -135,14 +163,20 @@ impl fmt::Display for Runner {
             Runner::Direct => f.write_str("directly"),
             Runner::PortableHost { path } => write!(f, "portable-host ({})", path.display()),
             Runner::DosBox { path } => write!(f, "DOSBox ({})", path.display()),
-            Runner::Umu { proton: Some(tool), .. } => {
+            Runner::Umu {
+                proton: Some(tool), ..
+            } => {
                 write!(f, "umu-launcher with {}", tool.display_name)
             }
             Runner::Umu { proton: None, .. } => f.write_str("umu-launcher with UMU-Proton"),
-            Runner::Proton { tool } => write!(f, "{} (Steam's Proton, run directly)", tool.display_name),
+            Runner::Proton { tool } => {
+                write!(f, "{} (Steam's Proton, run directly)", tool.display_name)
+            }
             Runner::Wine { path } => write!(f, "Wine ({})", path.display()),
             Runner::Crossover { bottle, .. } => write!(f, "CrossOver, bottle \"{bottle}\""),
-            Runner::GamePortingToolkit { .. } => f.write_str("Apple Game Porting Toolkit (evaluation)"),
+            Runner::GamePortingToolkit { .. } => {
+                f.write_str("Apple Game Porting Toolkit (evaluation)")
+            }
             Runner::Wsl { .. } => f.write_str("wsl.exe"),
             Runner::Translator { name, .. } => f.write_str(name),
             Runner::Lima { .. } => f.write_str("Lima"),
@@ -187,8 +221,7 @@ impl Candidate {
 
     /// Every blocker may be overridden from the command line.
     pub fn overridable(&self) -> bool {
-        self.blockers.iter().all(|blocker| blocker.overridable)
-            && self.runner.is_some()
+        self.blockers.iter().all(|blocker| blocker.overridable) && self.runner.is_some()
     }
 
     fn block(&mut self, kind: BlockerKind, message: impl Into<String>, overridable: bool) {
@@ -287,7 +320,13 @@ fn scan_game_dirs(path: &Path) -> Option<AntiCheatScan> {
             .and_then(Path::file_name)
             .map(|name| name.to_string_lossy().to_ascii_lowercase())
             .unwrap_or_default();
-        if name.is_empty() || name == "common" || name == "downloads" || name == "desktop" || parent_name == "home" || parent_name == "users" {
+        if name.is_empty()
+            || name == "common"
+            || name == "downloads"
+            || name == "desktop"
+            || parent_name == "home"
+            || parent_name == "users"
+        {
             break;
         }
         if let Ok(scan) = mica_inspect::anticheat::scan_dir(current) {
@@ -316,13 +355,15 @@ fn scan_game_dirs(path: &Path) -> Option<AntiCheatScan> {
 /// The Steam app ID of a program inside `.../steamapps/common/<dir>/`.
 pub fn steam_app_for(path: &Path) -> Option<String> {
     let components: Vec<_> = path.components().collect();
-    let index = components
-        .windows(2)
-        .position(|pair| {
-            pair[0].as_os_str().eq_ignore_ascii_case("steamapps")
-                && pair[1].as_os_str().eq_ignore_ascii_case("common")
-        })?;
-    let install_dir = components.get(index + 2)?.as_os_str().to_string_lossy().into_owned();
+    let index = components.windows(2).position(|pair| {
+        pair[0].as_os_str().eq_ignore_ascii_case("steamapps")
+            && pair[1].as_os_str().eq_ignore_ascii_case("common")
+    })?;
+    let install_dir = components
+        .get(index + 2)?
+        .as_os_str()
+        .to_string_lossy()
+        .into_owned();
     let steamapps: PathBuf = components[..=index].iter().collect();
     for entry in std::fs::read_dir(&steamapps).ok()?.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
@@ -333,7 +374,10 @@ pub fn steam_app_for(path: &Path) -> Option<String> {
         let document = mica_runtime::vdf::parse(&text).ok()?;
         let state = document.get("AppState")?;
         if state.get("installdir").and_then(|value| value.text()) == Some(install_dir.as_str()) {
-            return state.get("appid").and_then(|value| value.text()).map(str::to_string);
+            return state
+                .get("appid")
+                .and_then(|value| value.text())
+                .map(str::to_string);
         }
     }
     None
@@ -375,7 +419,8 @@ pub fn decide(inputs: &Inputs, target: &Target, forced: Option<Backend>) -> Deci
         (_, Platform::Linux) => match host.os {
             Os::Linux => {
                 if report.installer.is_some() {
-                    let mut candidate = Candidate::new(Backend::Native, Some(Route::LinuxNative), 0);
+                    let mut candidate =
+                        Candidate::new(Backend::Native, Some(Route::LinuxNative), 0);
                     candidate.block(
                         BlockerKind::Technical,
                         "this is a Linux package: install it with `mica install`, which uses your \
@@ -396,7 +441,8 @@ pub fn decide(inputs: &Inputs, target: &Target, forced: Option<Backend>) -> Deci
             let mut candidate = match host.os {
                 Os::MacOs => native_macos(inputs, report),
                 _ => {
-                    let mut candidate = Candidate::new(Backend::Native, Some(Route::MacosNative), 0);
+                    let mut candidate =
+                        Candidate::new(Backend::Native, Some(Route::MacosNative), 0);
                     candidate.block(
                         BlockerKind::Technical,
                         "macOS programs need macOS: Apple's license allows macOS only on Apple \
@@ -408,7 +454,9 @@ pub fn decide(inputs: &Inputs, target: &Target, forced: Option<Backend>) -> Deci
                 }
             };
             if report.installer.is_some() && host.os == Os::MacOs {
-                candidate.reasons.push("open the disk image or package to install it".into());
+                candidate
+                    .reasons
+                    .push("open the disk image or package to install it".into());
             }
             candidates.push(candidate);
         }
@@ -422,7 +470,9 @@ pub fn decide(inputs: &Inputs, target: &Target, forced: Option<Backend>) -> Deci
                 );
             } else {
                 candidate.runner = Some(Runner::Direct);
-                candidate.reasons.push(format!("a script for {interpreter}"));
+                candidate
+                    .reasons
+                    .push(format!("a script for {interpreter}"));
             }
             candidates.push(candidate);
         }
@@ -449,7 +499,10 @@ pub fn decide(inputs: &Inputs, target: &Target, forced: Option<Backend>) -> Deci
             let mut candidate = Candidate::new(Backend::Native, None, 0);
             candidate.block(
                 BlockerKind::Technical,
-                format!("MICA does not recognise this file as a program ({:?})", report.format),
+                format!(
+                    "MICA does not recognise this file as a program ({:?})",
+                    report.format
+                ),
                 false,
             );
             candidates.push(candidate);
@@ -457,20 +510,21 @@ pub fn decide(inputs: &Inputs, target: &Target, forced: Option<Backend>) -> Deci
     }
 
     if let Some(game) = game {
-        if let Some(cloud) = game.route(Route::Cloud) {
-            if cloud.authorization == Authorization::Authorized && !cloud.providers.is_empty() {
-                let mut candidate = Candidate::new(Backend::Remote, Some(Route::Cloud), 5);
-                candidate.runner = Some(Runner::Cloud {
-                    providers: cloud.providers.clone(),
-                });
-                candidate.reasons.push(format!(
-                    "{} names these cloud services: {}. The game runs on their computers and \
+        if let Some(cloud) = game.route(Route::Cloud)
+            && cloud.authorization == Authorization::Authorized
+            && !cloud.providers.is_empty()
+        {
+            let mut candidate = Candidate::new(Backend::Remote, Some(Route::Cloud), 5);
+            candidate.runner = Some(Runner::Cloud {
+                providers: cloud.providers.clone(),
+            });
+            candidate.reasons.push(format!(
+                "{} names these cloud services: {}. The game runs on their computers and \
                      streams to yours; it is not local compatibility.",
-                    game.publisher,
-                    cloud.providers.join(", ")
-                ));
-                candidates.push(candidate);
-            }
+                game.publisher,
+                cloud.providers.join(", ")
+            ));
+            candidates.push(candidate);
         }
         if game.eac_linux_v2.is_some() && host.os == Os::Linux {
             notes.push(format!(
@@ -482,16 +536,24 @@ pub fn decide(inputs: &Inputs, target: &Target, forced: Option<Backend>) -> Deci
         notes.extend(game.notes.iter().cloned());
     }
 
-    candidates.retain(|candidate| candidate.score > 0 || !candidate.blockers.is_empty() || candidate.runner.is_some());
+    candidates.retain(|candidate| {
+        candidate.score > 0 || !candidate.blockers.is_empty() || candidate.runner.is_some()
+    });
     // Eligible first, then by score; the remote option never outranks a
     // local one.
     candidates.sort_by(|a, b| {
-        (b.eligible(), b.backend != Backend::Remote, b.score).cmp(&(a.eligible(), a.backend != Backend::Remote, a.score))
+        (b.eligible(), b.backend != Backend::Remote, b.score).cmp(&(
+            a.eligible(),
+            a.backend != Backend::Remote,
+            a.score,
+        ))
     });
 
     let (chosen, forced_used) = match forced {
         Some(backend) => {
-            let index = candidates.iter().position(|candidate| candidate.backend == backend);
+            let index = candidates
+                .iter()
+                .position(|candidate| candidate.backend == backend);
             match index {
                 Some(index) if candidates[index].eligible() || candidates[index].overridable() => {
                     if !candidates[index].eligible() {
@@ -510,7 +572,10 @@ pub fn decide(inputs: &Inputs, target: &Target, forced: Option<Backend>) -> Deci
                     (None, true)
                 }
                 None => {
-                    notes.push(format!("{backend} does not apply to this kind of program on {}.", host.os));
+                    notes.push(format!(
+                        "{backend} does not apply to this kind of program on {}.",
+                        host.os
+                    ));
                     (None, true)
                 }
             }
@@ -533,9 +598,9 @@ pub fn decide(inputs: &Inputs, target: &Target, forced: Option<Backend>) -> Deci
 
 fn portable_host(inputs: &Inputs) -> Candidate {
     let mut candidate = Candidate::new(Backend::PortableHost, None, 100);
-    candidate.reasons.push(
-        "a portable:platform WebAssembly component: the same file runs on every host".into(),
-    );
+    candidate
+        .reasons
+        .push("a portable:platform WebAssembly component: the same file runs on every host".into());
     match inputs.runtimes.first(RuntimeKind::PortableHost) {
         Some(runtime) => {
             candidate.runner = Some(Runner::PortableHost {
@@ -543,7 +608,11 @@ fn portable_host(inputs: &Inputs) -> Candidate {
             })
         }
         None => {
-            candidate.block(BlockerKind::MissingRuntime, "portable-host is not on PATH", true);
+            candidate.block(
+                BlockerKind::MissingRuntime,
+                "portable-host is not on PATH",
+                true,
+            );
             candidate.setup.push(
                 "Build it from this repository: cargo build --release -p portable-host (needs \
                  SDL3), or nix build .#host"
@@ -578,23 +647,35 @@ fn native_windows(host: &HostProfile, report: &Report) -> Candidate {
     candidate.runner = Some(Runner::Direct);
     let arches = &report.architectures;
     match (host.arch, arches.first().copied()) {
-        (_, Some(Arch::X86)) | (Arch::X86_64, Some(Arch::X86_64)) | (Arch::Aarch64, Some(Arch::Aarch64 | Arch::Arm64ec)) => {
-            candidate.reasons.push("a Windows program for this CPU".into());
+        (_, Some(Arch::X86))
+        | (Arch::X86_64, Some(Arch::X86_64))
+        | (Arch::Aarch64, Some(Arch::Aarch64 | Arch::Arm64ec)) => {
+            candidate
+                .reasons
+                .push("a Windows program for this CPU".into());
         }
         (Arch::Aarch64, Some(Arch::X86_64)) => {
             candidate.score = 90;
-            candidate.reasons.push("an x86-64 program; Windows on ARM emulates it".into());
+            candidate
+                .reasons
+                .push("an x86-64 program; Windows on ARM emulates it".into());
         }
         _ => candidate.block(
             BlockerKind::Architecture,
-            format!("built for {}, which this {} PC cannot run", arch_list(report), host.arch),
+            format!(
+                "built for {}, which this {} PC cannot run",
+                arch_list(report),
+                host.arch
+            ),
             false,
         ),
     }
-    if let Format::Pe(details) = &report.format {
-        if details.requires_admin {
-            candidate.warnings.push("it asks for administrator rights when it starts".into());
-        }
+    if let Format::Pe(details) = &report.format
+        && details.requires_admin
+    {
+        candidate
+            .warnings
+            .push("it asks for administrator rights when it starts".into());
     }
     candidate
 }
@@ -602,9 +683,9 @@ fn native_windows(host: &HostProfile, report: &Report) -> Candidate {
 fn graphics_notes(candidate: &mut Candidate, report: &Report, host: &HostProfile, proton: bool) {
     let apis = report.graphics_apis();
     if apis.contains(&GraphicsApi::Direct3D12) {
-        candidate.reasons.push(
-            "Direct3D 12: Proton translates it to Vulkan with VKD3D-Proton".into(),
-        );
+        candidate
+            .reasons
+            .push("Direct3D 12: Proton translates it to Vulkan with VKD3D-Proton".into());
         if !proton {
             candidate.warnings.push(
                 "plain Wine has only partial Direct3D 12 support; Proton (with VKD3D-Proton) works better"
@@ -613,7 +694,13 @@ fn graphics_notes(candidate: &mut Candidate, report: &Report, host: &HostProfile
         }
     }
     if apis.iter().any(|api| {
-        matches!(api, GraphicsApi::Direct3D8 | GraphicsApi::Direct3D9 | GraphicsApi::Direct3D10 | GraphicsApi::Direct3D11)
+        matches!(
+            api,
+            GraphicsApi::Direct3D8
+                | GraphicsApi::Direct3D9
+                | GraphicsApi::Direct3D10
+                | GraphicsApi::Direct3D11
+        )
     }) {
         candidate
             .reasons
@@ -658,7 +745,11 @@ fn windows_compat_linux(inputs: &Inputs, target: &Target) -> Candidate {
     let mut candidate = Candidate::new(Backend::WindowsCompat, Some(Route::LinuxProton), 80);
     candidate.reasons.push(format!(
         "a Windows {} for {}",
-        if report.is_installer() { "installer" } else { "program" },
+        if report.is_installer() {
+            "installer"
+        } else {
+            "program"
+        },
         arch_list(report)
     ));
     let x86 = report
@@ -668,7 +759,10 @@ fn windows_compat_linux(inputs: &Inputs, target: &Target) -> Candidate {
     if !x86 {
         candidate.block(
             BlockerKind::Architecture,
-            format!("Wine runs x86 and x86-64 Windows programs; this one is {}", arch_list(report)),
+            format!(
+                "Wine runs x86 and x86-64 Windows programs; this one is {}",
+                arch_list(report)
+            ),
             false,
         );
     }
@@ -689,7 +783,11 @@ fn windows_compat_linux(inputs: &Inputs, target: &Target) -> Candidate {
         .wine
         .as_ref()
         .map(PathBuf::from)
-        .or_else(|| runtimes.first(RuntimeKind::Wine).map(|runtime| runtime.path.clone()));
+        .or_else(|| {
+            runtimes
+                .first(RuntimeKind::Wine)
+                .map(|runtime| runtime.path.clone())
+        });
     let proton = runtimes.protons.first().cloned();
     let runner = match preference {
         PreferredRuntime::Auto => umu
@@ -728,15 +826,20 @@ fn windows_compat_linux(inputs: &Inputs, target: &Target) -> Candidate {
     }
     candidate.runner = runner;
     graphics_notes(&mut candidate, report, host, uses_proton);
-    if let Format::Pe(details) = &report.format {
-        if details.dotnet {
-            candidate.warnings.push(
+    if let Format::Pe(details) = &report.format
+        && details.dotnet
+    {
+        candidate.warnings.push(
                 ".NET programs need Wine Mono (Wine offers to install it) or Microsoft .NET in the prefix"
                     .into(),
             );
-        }
     }
-    if target.game.is_some() || target.scan.as_ref().is_some_and(|scan| !scan.signals.is_empty()) {
+    if target.game.is_some()
+        || target
+            .scan
+            .as_ref()
+            .is_some_and(|scan| !scan.signals.is_empty())
+    {
         let verdict = policy::assess(
             inputs.database,
             target.game.as_ref(),
@@ -745,15 +848,14 @@ fn windows_compat_linux(inputs: &Inputs, target: &Target) -> Candidate {
         );
         apply_policy(&mut candidate, verdict);
     }
-    if let Some(game) = &target.game {
-        if let Some(native) = game.route(Route::LinuxNative) {
-            if native.authorization == Authorization::Planned {
-                candidate.warnings.push(format!(
-                    "{} plans a Linux release; until then: {}",
-                    game.publisher, native.summary
-                ));
-            }
-        }
+    if let Some(game) = &target.game
+        && let Some(native) = game.route(Route::LinuxNative)
+        && native.authorization == Authorization::Planned
+    {
+        candidate.warnings.push(format!(
+            "{} plans a Linux release; until then: {}",
+            game.publisher, native.summary
+        ));
     }
     candidate
 }
@@ -771,9 +873,9 @@ fn protected_multiplayer(target: &Target) -> bool {
 
 fn virtual_machine(inputs: &Inputs, target: &Target) -> Candidate {
     let mut candidate = Candidate::new(Backend::VirtualMachine, Some(Route::LinuxVm), 40);
-    candidate.reasons.push(
-        "a real Windows in a virtual machine, for programs that need Windows itself".into(),
-    );
+    candidate
+        .reasons
+        .push("a real Windows in a virtual machine, for programs that need Windows itself".into());
     candidate.warnings.push(
         "a virtual machine needs a Windows license, several GB of memory, and (for good 3D \
          performance) a second GPU passed through; it is a full Windows, not a lightweight layer"
@@ -838,32 +940,55 @@ fn windows_compat_macos(inputs: &Inputs, target: &Target) -> Candidate {
     let crossover = runtimes.first(RuntimeKind::Crossover);
     let wine = runtimes.first(RuntimeKind::Wine);
     let gptk = runtimes.first(RuntimeKind::GamePortingToolkit);
-    let bottle = inputs.config.windows.bottle.clone().unwrap_or_else(|| "MICA".into());
+    let bottle = inputs
+        .config
+        .windows
+        .bottle
+        .clone()
+        .unwrap_or_else(|| "MICA".into());
     candidate.runner = match preference {
-        PreferredRuntime::Wine => wine.map(|runtime| Runner::Wine { path: runtime.path.clone() }),
+        PreferredRuntime::Wine => wine.map(|runtime| Runner::Wine {
+            path: runtime.path.clone(),
+        }),
         _ => crossover
             .map(|runtime| Runner::Crossover {
                 path: runtime.path.clone(),
                 bottle: bottle.clone(),
             })
-            .or_else(|| wine.map(|runtime| Runner::Wine { path: runtime.path.clone() }))
-            .or_else(|| gptk.map(|runtime| Runner::GamePortingToolkit { path: runtime.path.clone() })),
+            .or_else(|| {
+                wine.map(|runtime| Runner::Wine {
+                    path: runtime.path.clone(),
+                })
+            })
+            .or_else(|| {
+                gptk.map(|runtime| Runner::GamePortingToolkit {
+                    path: runtime.path.clone(),
+                })
+            }),
     };
     if candidate.runner.is_none() {
-        candidate.block(BlockerKind::MissingRuntime, "no Windows runtime is installed", true);
-        candidate.setup.push("`mica setup windows` explains how to install CrossOver".into());
+        candidate.block(
+            BlockerKind::MissingRuntime,
+            "no Windows runtime is installed",
+            true,
+        );
+        candidate
+            .setup
+            .push("`mica setup windows` explains how to install CrossOver".into());
     }
     if inputs.host.arch == Arch::Aarch64 {
-        candidate.reasons.push(
-            "Apple Silicon: x86 Windows code runs through Rosetta 2 inside Wine".into(),
-        );
+        candidate
+            .reasons
+            .push("Apple Silicon: x86 Windows code runs through Rosetta 2 inside Wine".into());
         if !runtimes.has(RuntimeKind::Rosetta) {
             candidate.block(
                 BlockerKind::MissingRuntime,
                 "Rosetta 2 is not installed",
                 true,
             );
-            candidate.setup.push("softwareupdate --install-rosetta".into());
+            candidate
+                .setup
+                .push("softwareupdate --install-rosetta".into());
         }
         candidate.warnings.push(
             "Apple plans to keep Rosetta 2 fully available through macOS 27, and only a subset for \
@@ -879,7 +1004,12 @@ fn windows_compat_macos(inputs: &Inputs, target: &Target) -> Candidate {
                 .into(),
         );
     }
-    if target.game.is_some() || target.scan.as_ref().is_some_and(|scan| !scan.signals.is_empty()) {
+    if target.game.is_some()
+        || target
+            .scan
+            .as_ref()
+            .is_some_and(|scan| !scan.signals.is_empty())
+    {
         let verdict = policy::assess(
             inputs.database,
             target.game.as_ref(),
@@ -888,9 +1018,9 @@ fn windows_compat_macos(inputs: &Inputs, target: &Target) -> Candidate {
         );
         apply_policy(&mut candidate, verdict);
         if protected_multiplayer(target) {
-            candidate.warnings.push(
-                "Windows kernel-level anti-cheat cannot run under Wine on macOS".into(),
-            );
+            candidate
+                .warnings
+                .push("Windows kernel-level anti-cheat cannot run under Wine on macOS".into());
         }
     }
     candidate
@@ -926,7 +1056,9 @@ fn native_elf(inputs: &Inputs, report: &Report) -> Candidate {
     candidate.runner = Some(Runner::Direct);
     let arch = report.architectures.first().copied().unwrap_or(Arch::Other);
     match (host.arch, arch) {
-        (a, b) if a == b => candidate.reasons.push("a Linux program for this CPU".into()),
+        (a, b) if a == b => candidate
+            .reasons
+            .push("a Linux program for this CPU".into()),
         (Arch::X86_64, Arch::X86) => {
             candidate.score = 95;
             candidate.reasons.push(
@@ -935,18 +1067,26 @@ fn native_elf(inputs: &Inputs, report: &Report) -> Candidate {
         }
         (Arch::Aarch64, Arch::Arm) => {
             candidate.score = 90;
-            candidate.warnings.push("32-bit ARM programs run only on CPUs that kept 32-bit support".into());
+            candidate
+                .warnings
+                .push("32-bit ARM programs run only on CPUs that kept 32-bit support".into());
         }
         _ => candidate.block(
             BlockerKind::Architecture,
-            format!("built for {}, this computer is {}", arch_list(report), host.arch),
+            format!(
+                "built for {}, this computer is {}",
+                arch_list(report),
+                host.arch
+            ),
             false,
         ),
     }
-    if let Format::Elf(details) = &report.format {
-        if details.appimage.is_some() {
-            candidate.reasons.push("an AppImage (needs FUSE to mount itself)".into());
-        }
+    if let Format::Elf(details) = &report.format
+        && details.appimage.is_some()
+    {
+        candidate
+            .reasons
+            .push("an AppImage (needs FUSE to mount itself)".into());
     }
     candidate
 }
@@ -961,7 +1101,9 @@ fn arch_translation(inputs: &Inputs, report: &Report) -> Candidate {
         return candidate;
     }
     candidate.score = 50;
-    candidate.reasons.push("an x86 Linux program on an ARM64 computer".into());
+    candidate
+        .reasons
+        .push("an x86 Linux program on an ARM64 computer".into());
     let fex = inputs.runtimes.first(RuntimeKind::Fex);
     let box64 = inputs.runtimes.first(RuntimeKind::Box64);
     candidate.runner = fex
@@ -976,15 +1118,23 @@ fn arch_translation(inputs: &Inputs, report: &Report) -> Candidate {
             })
         });
     if candidate.runner.is_none() {
-        candidate.block(BlockerKind::MissingRuntime, "neither FEX-Emu nor Box64 is installed", true);
-        candidate.setup.push("Install FEX-Emu (https://fex-emu.com) or Box64 from your distribution".into());
+        candidate.block(
+            BlockerKind::MissingRuntime,
+            "neither FEX-Emu nor Box64 is installed",
+            true,
+        );
+        candidate
+            .setup
+            .push("Install FEX-Emu (https://fex-emu.com) or Box64 from your distribution".into());
     }
     candidate
 }
 
 fn wsl(inputs: &Inputs, report: &Report) -> Candidate {
     let mut candidate = Candidate::new(Backend::Wsl, Some(Route::WindowsWsl), 85);
-    candidate.reasons.push("a Linux program: WSL runs it in a real Linux kernel".into());
+    candidate
+        .reasons
+        .push("a Linux program: WSL runs it in a real Linux kernel".into());
     if report.installer.is_some() {
         candidate.block(
             BlockerKind::Technical,
@@ -994,10 +1144,18 @@ fn wsl(inputs: &Inputs, report: &Report) -> Candidate {
         return candidate;
     }
     let host_arch = inputs.host.arch;
-    if !report.architectures.iter().any(|arch| *arch == host_arch || (*arch == Arch::X86 && host_arch == Arch::X86_64)) {
+    if !report
+        .architectures
+        .iter()
+        .any(|arch| *arch == host_arch || (*arch == Arch::X86 && host_arch == Arch::X86_64))
+    {
         candidate.block(
             BlockerKind::Architecture,
-            format!("built for {}, and WSL runs {} Linux programs", arch_list(report), host_arch),
+            format!(
+                "built for {}, and WSL runs {} Linux programs",
+                arch_list(report),
+                host_arch
+            ),
             false,
         );
     }
@@ -1008,16 +1166,19 @@ fn wsl(inputs: &Inputs, report: &Report) -> Candidate {
             });
             if runtime.version.is_none() {
                 candidate.warnings.push(
-                    "WSL is installed but no Linux distribution was listed; run `wsl --install`".into(),
+                    "WSL is installed but no Linux distribution was listed; run `wsl --install`"
+                        .into(),
                 );
             }
-            candidate.reasons.push(
-                "graphical programs open in Windows through WSLg on Windows 11".into(),
-            );
+            candidate
+                .reasons
+                .push("graphical programs open in Windows through WSLg on Windows 11".into());
         }
         None => {
             candidate.block(BlockerKind::MissingRuntime, "WSL is not installed", true);
-            candidate.setup.push("From an administrator terminal: wsl --install (then restart)".into());
+            candidate
+                .setup
+                .push("From an administrator terminal: wsl --install (then restart)".into());
         }
     }
     candidate
@@ -1025,7 +1186,9 @@ fn wsl(inputs: &Inputs, report: &Report) -> Candidate {
 
 fn linux_vm(inputs: &Inputs) -> Candidate {
     let mut candidate = Candidate::new(Backend::LinuxVm, None, 50);
-    candidate.reasons.push("a Linux program: macOS runs it in a Linux virtual machine".into());
+    candidate
+        .reasons
+        .push("a Linux program: macOS runs it in a Linux virtual machine".into());
     match inputs.runtimes.first(RuntimeKind::Lima) {
         Some(runtime) => {
             candidate.runner = Some(Runner::Lima {
@@ -1051,18 +1214,28 @@ fn native_macos(inputs: &Inputs, report: &Report) -> Candidate {
     candidate.runner = Some(Runner::Direct);
     let arches = &report.architectures;
     if arches.contains(&host.arch) {
-        candidate.reasons.push("a macOS program for this CPU".into());
+        candidate
+            .reasons
+            .push("a macOS program for this CPU".into());
     } else if host.arch == Arch::Aarch64 && arches.contains(&Arch::X86_64) {
         candidate.backend = Backend::Rosetta;
         candidate.score = 85;
-        candidate.reasons.push("an Intel program: macOS runs it through Rosetta 2".into());
+        candidate
+            .reasons
+            .push("an Intel program: macOS runs it through Rosetta 2".into());
         if !inputs.runtimes.has(RuntimeKind::Rosetta) {
-            candidate.block(BlockerKind::MissingRuntime, "Rosetta 2 is not installed", true);
-            candidate.setup.push("softwareupdate --install-rosetta".into());
+            candidate.block(
+                BlockerKind::MissingRuntime,
+                "Rosetta 2 is not installed",
+                true,
+            );
+            candidate
+                .setup
+                .push("softwareupdate --install-rosetta".into());
         }
-        candidate.warnings.push(
-            "Apple plans general Rosetta 2 support through macOS 27 only".into(),
-        );
+        candidate
+            .warnings
+            .push("Apple plans general Rosetta 2 support through macOS 27 only".into());
     } else {
         candidate.block(
             BlockerKind::Architecture,
@@ -1075,5 +1248,7 @@ fn native_macos(inputs: &Inputs, report: &Report) -> Candidate {
 
 /// The installer kind, for messages.
 pub fn installer_label(installer: Option<Installer>) -> String {
-    installer.map(|kind| kind.to_string()).unwrap_or_else(|| "program".into())
+    installer
+        .map(|kind| kind.to_string())
+        .unwrap_or_else(|| "program".into())
 }

@@ -32,10 +32,16 @@ fn format_summary(report: &Report) -> String {
             "ELF {}-bit {}{}",
             elf.bits,
             elf.elf_type,
-            if elf.appimage.is_some() { " (AppImage)" } else { "" }
+            if elf.appimage.is_some() {
+                " (AppImage)"
+            } else {
+                ""
+            }
         ),
         Format::MachO(macho) => format!("Mach-O {}", macho.file_type),
-        Format::MachOUniversal { slices } => format!("universal Mach-O ({} architectures)", slices.len()),
+        Format::MachOUniversal { slices } => {
+            format!("universal Mach-O ({} architectures)", slices.len())
+        }
         Format::AppBundle(bundle) => format!("macOS app bundle (executable {})", bundle.executable),
         Format::WasmComponent => "WebAssembly component".into(),
         Format::WasmModule => "WebAssembly core module".into(),
@@ -66,7 +72,15 @@ fn print_target(target: &Target) {
     if let Some(sha256) = &report.sha256 {
         more(format!("sha256 {sha256}"));
     }
-    more(format!("{} bytes{}", report.size, if report.truncated { " (partly read)" } else { "" }));
+    more(format!(
+        "{} bytes{}",
+        report.size,
+        if report.truncated {
+            " (partly read)"
+        } else {
+            ""
+        }
+    ));
     line("format", format_summary(report));
     line("platform", report.platform);
     line(
@@ -94,20 +108,32 @@ fn print_target(target: &Target) {
         );
     }
     if !report.libraries.is_empty() {
-        let shown: Vec<&str> = report.libraries.iter().take(12).map(String::as_str).collect();
+        let shown: Vec<&str> = report
+            .libraries
+            .iter()
+            .take(12)
+            .map(String::as_str)
+            .collect();
         let rest = report.libraries.len().saturating_sub(shown.len());
         para(
             "libraries",
             &format!(
                 "{}{}",
                 shown.join(", "),
-                if rest > 0 { format!(" (+{rest} more)") } else { String::new() }
+                if rest > 0 {
+                    format!(" (+{rest} more)")
+                } else {
+                    String::new()
+                }
             ),
         );
     }
     if let Some(scan) = &target.scan {
         if scan.signals.is_empty() {
-            line("anti-cheat", format!("none found ({} files checked)", scan.entries_scanned));
+            line(
+                "anti-cheat",
+                format!("none found ({} files checked)", scan.entries_scanned),
+            );
         } else {
             for anticheat in scan.detected() {
                 let markers: Vec<&str> = scan
@@ -117,18 +143,34 @@ fn print_target(target: &Target) {
                     .map(|signal| signal.marker.as_str())
                     .take(3)
                     .collect();
-                line("anti-cheat", format!("{anticheat} ({})", markers.join(", ")));
+                line(
+                    "anti-cheat",
+                    format!("{anticheat} ({})", markers.join(", ")),
+                );
             }
-            if scan.detected().contains(&mica_inspect::AntiCheat::EasyAntiCheat) {
+            if scan
+                .detected()
+                .contains(&mica_inspect::AntiCheat::EasyAntiCheat)
+            {
                 more(format!(
                     "EAC's Proton library (easyanticheat_x64.so): {}",
-                    if scan.eac_proton_library { "present" } else { "absent" }
+                    if scan.eac_proton_library {
+                        "present"
+                    } else {
+                        "absent"
+                    }
                 ));
             }
         }
     }
     if let Some(game) = &target.game {
-        line("game", format!("{} — in MICA's compatibility database ({})", game.name, game.id));
+        line(
+            "game",
+            format!(
+                "{} — in MICA's compatibility database ({})",
+                game.name, game.id
+            ),
+        );
     }
     if let Some(id) = &target.steam_app_id {
         line("steam", format!("app {id}"));
@@ -208,7 +250,10 @@ fn print_decision(session: &Session, target: &Target, decision: &Decision) {
                 .join(", ")
         ),
     );
-    line("host", format!("{} ({}, {})", host.os_name, host.os, host.arch));
+    line(
+        "host",
+        format!("{} ({}, {})", host.os_name, host.os, host.arch),
+    );
     if !decision.anticheats.is_empty() {
         line(
             "anti-cheat",
@@ -240,7 +285,12 @@ struct PlanOutput<'a> {
     command: Option<mica_runtime::LaunchPlan>,
 }
 
-pub fn plan(session: &Session, path: &Path, backend: Option<Backend>, json: bool) -> Result<ExitCode> {
+pub fn plan(
+    session: &Session,
+    path: &Path,
+    backend: Option<Backend>,
+    json: bool,
+) -> Result<ExitCode> {
     let target = mica_engine::analyze(path, session.database())
         .with_context(|| format!("cannot inspect {}", path.display()))?;
     let decision = mica_engine::decide(&session.inputs(), &target, backend);
@@ -266,7 +316,7 @@ pub fn plan(session: &Session, path: &Path, backend: Option<Backend>, json: bool
         print_decision(session, &target, &decision);
         if let Some(command) = command {
             println!();
-            line("command", &command.display());
+            line("command", command.display());
             if let Some(prefix) = &command.prefix {
                 line("prefix", prefix.display());
             }
@@ -372,7 +422,9 @@ pub fn run(
 
 /// Windows paths a shortcut names, mapped into a Wine prefix.
 fn prefix_path(prefix: &Path, windows: &str) -> Option<PathBuf> {
-    let rest = windows.strip_prefix("C:\\").or_else(|| windows.strip_prefix("c:\\"))?;
+    let rest = windows
+        .strip_prefix("C:\\")
+        .or_else(|| windows.strip_prefix("c:\\"))?;
     let mut path = prefix.join("drive_c");
     for part in rest.split('\\').filter(|part| !part.is_empty()) {
         path.push(part);
@@ -386,13 +438,18 @@ fn shortcuts(prefix: &Path) -> Vec<(String, PathBuf)> {
     let mut roots = vec![prefix.join("drive_c/ProgramData/Microsoft/Windows/Start Menu/Programs")];
     if let Ok(users) = std::fs::read_dir(prefix.join("drive_c/users")) {
         for user in users.flatten() {
-            roots.push(user.path().join("AppData/Roaming/Microsoft/Windows/Start Menu/Programs"));
+            roots.push(
+                user.path()
+                    .join("AppData/Roaming/Microsoft/Windows/Start Menu/Programs"),
+            );
         }
     }
     let mut stack = roots;
     let mut seen = 0;
     while let Some(dir) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for entry in entries.flatten() {
             seen += 1;
             if seen > 5000 {
@@ -401,9 +458,16 @@ fn shortcuts(prefix: &Path) -> Vec<(String, PathBuf)> {
             let path = entry.path();
             if path.is_dir() {
                 stack.push(path);
-            } else if path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("lnk")) {
-                let Ok(data) = std::fs::read(&path) else { continue };
-                let Some(shortcut) = mica_inspect::lnk::parse(&data) else { continue };
+            } else if path
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("lnk"))
+            {
+                let Ok(data) = std::fs::read(&path) else {
+                    continue;
+                };
+                let Some(shortcut) = mica_inspect::lnk::parse(&data) else {
+                    continue;
+                };
                 if !shortcut.target.to_ascii_lowercase().ends_with(".exe") {
                     continue;
                 }
@@ -426,7 +490,13 @@ fn shortcuts(prefix: &Path) -> Vec<(String, PathBuf)> {
     found
 }
 
-pub fn install(session: &Session, installer: &Path, name: Option<&str>, dry_run: bool, yes: bool) -> Result<ExitCode> {
+pub fn install(
+    session: &Session,
+    installer: &Path,
+    name: Option<&str>,
+    dry_run: bool,
+    yes: bool,
+) -> Result<ExitCode> {
     let target = mica_engine::analyze(installer, session.database())
         .with_context(|| format!("cannot inspect {}", installer.display()))?;
     let report = &target.report;
@@ -444,21 +514,48 @@ pub fn install(session: &Session, installer: &Path, name: Option<&str>, dry_run:
     });
 
     // Linux packages go through the package manager.
-    if matches!(report.installer, Some(Installer::DebianPackage | Installer::RpmPackage)) {
+    if matches!(
+        report.installer,
+        Some(Installer::DebianPackage | Installer::RpmPackage)
+    ) {
         if os != Os::Linux {
-            bail!("{} is a Linux package; install it inside Linux (on Windows: inside WSL)", installer.display());
+            bail!(
+                "{} is a Linux package; install it inside Linux (on Windows: inside WSL)",
+                installer.display()
+            );
         }
-        let family = session.host_light().distro.as_ref().map(|distro| distro.family);
+        let family = session
+            .host_light()
+            .distro
+            .as_ref()
+            .map(|distro| distro.family);
         let absolute = installer.canonicalize()?;
         let command: Vec<String> = match (report.installer, family) {
             (Some(Installer::DebianPackage), Some(Family::Debian)) => {
-                vec!["sudo".into(), "apt-get".into(), "install".into(), "-y".into(), absolute.to_string_lossy().into()]
+                vec![
+                    "sudo".into(),
+                    "apt-get".into(),
+                    "install".into(),
+                    "-y".into(),
+                    absolute.to_string_lossy().into(),
+                ]
             }
             (Some(Installer::RpmPackage), Some(Family::Fedora)) => {
-                vec!["sudo".into(), "dnf".into(), "install".into(), "-y".into(), absolute.to_string_lossy().into()]
+                vec![
+                    "sudo".into(),
+                    "dnf".into(),
+                    "install".into(),
+                    "-y".into(),
+                    absolute.to_string_lossy().into(),
+                ]
             }
             (Some(Installer::RpmPackage), Some(Family::Suse)) => {
-                vec!["sudo".into(), "zypper".into(), "install".into(), absolute.to_string_lossy().into()]
+                vec![
+                    "sudo".into(),
+                    "zypper".into(),
+                    "install".into(),
+                    absolute.to_string_lossy().into(),
+                ]
             }
             _ => bail!(
                 "{} does not match this distribution's package format; look for a package made \
@@ -473,14 +570,28 @@ pub fn install(session: &Session, installer: &Path, name: Option<&str>, dry_run:
         if dry_run || !ui::confirm("Run it now?", yes) {
             return Ok(ExitCode::SUCCESS);
         }
-        let status = std::process::Command::new(&command[0]).args(&command[1..]).status()?;
-        return Ok(if status.success() { ExitCode::SUCCESS } else { ExitCode::FAILURE });
+        let status = std::process::Command::new(&command[0])
+            .args(&command[1..])
+            .status()?;
+        return Ok(if status.success() {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        });
     }
-    if report.installer == Some(Installer::AppleDiskImage) || report.installer == Some(Installer::ApplePackage) {
+    if report.installer == Some(Installer::AppleDiskImage)
+        || report.installer == Some(Installer::ApplePackage)
+    {
         if os != Os::MacOs {
-            bail!("{} is a macOS installer and needs macOS", installer.display());
+            bail!(
+                "{} is a macOS installer and needs macOS",
+                installer.display()
+            );
         }
-        println!("Opening {} with macOS; follow its instructions.", installer.display());
+        println!(
+            "Opening {} with macOS; follow its instructions.",
+            installer.display()
+        );
         if !dry_run {
             std::process::Command::new("open").arg(installer).status()?;
         }
@@ -505,7 +616,10 @@ pub fn install(session: &Session, installer: &Path, name: Option<&str>, dry_run:
         print_decision(session, &target, &decision);
         return Ok(ExitCode::from(CANNOT_RUN));
     };
-    let prefix_name = config::app_id(&name, &installer.canonicalize().unwrap_or(installer.to_path_buf()));
+    let prefix_name = config::app_id(
+        &name,
+        &installer.canonicalize().unwrap_or(installer.to_path_buf()),
+    );
     let plan = mica_engine::prepare(
         candidate,
         &target,
@@ -529,11 +643,19 @@ pub fn install(session: &Session, installer: &Path, name: Option<&str>, dry_run:
         eprintln!(
             "mica: the installer exited with {:?}; log: {}",
             outcome.code,
-            outcome.log.as_ref().map(|log| log.display().to_string()).unwrap_or_default()
+            outcome
+                .log
+                .as_ref()
+                .map(|log| log.display().to_string())
+                .unwrap_or_default()
         );
     }
     if os == Os::Windows {
-        return Ok(if outcome.success { ExitCode::SUCCESS } else { ExitCode::FAILURE });
+        return Ok(if outcome.success {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        });
     }
     let Some(prefix) = plan.prefix.clone() else {
         return Ok(ExitCode::SUCCESS);
@@ -541,7 +663,9 @@ pub fn install(session: &Session, installer: &Path, name: Option<&str>, dry_run:
     let found = shortcuts(&prefix);
     if found.is_empty() {
         println!("The installer created no Start-menu shortcuts MICA could follow.");
-        println!("Run the installed program with: mica run --prefix {prefix_name} <path to its .exe>");
+        println!(
+            "Run the installed program with: mica run --prefix {prefix_name} <path to its .exe>"
+        );
         return Ok(ExitCode::SUCCESS);
     }
     let mut apps = Apps::load(&session.dirs.apps_file()).map_err(anyhow::Error::msg)?;
@@ -555,7 +679,10 @@ pub fn install(session: &Session, installer: &Path, name: Option<&str>, dry_run:
             installed_from: Some(installer.to_path_buf()),
             added: config::now_rfc3339(),
         };
-        println!("added      {} ({}) — run it with: mica run \"{}\"", record.name, record.id, record.name);
+        println!(
+            "added      {} ({}) — run it with: mica run \"{}\"",
+            record.name, record.id, record.name
+        );
         apps.upsert(record);
     }
     apps.save(&session.dirs.apps_file())?;
@@ -599,7 +726,9 @@ pub fn apps_list(session: &Session, json: bool) -> Result<ExitCode> {
         return Ok(ExitCode::SUCCESS);
     }
     if apps.apps.is_empty() {
-        println!("No applications installed through MICA yet. Install one with: mica install <installer>");
+        println!(
+            "No applications installed through MICA yet. Install one with: mica install <installer>"
+        );
     }
     for app in &apps.apps {
         println!("{}  (id {})", app.name, app.id);
@@ -608,7 +737,12 @@ pub fn apps_list(session: &Session, json: bool) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn apps_remove(session: &Session, query: &str, delete_prefix: bool, yes: bool) -> Result<ExitCode> {
+pub fn apps_remove(
+    session: &Session,
+    query: &str,
+    delete_prefix: bool,
+    yes: bool,
+) -> Result<ExitCode> {
     let path = session.dirs.apps_file();
     let mut apps = Apps::load(&path).map_err(anyhow::Error::msg)?;
     let Some(app) = apps.find(query).cloned() else {
@@ -617,17 +751,27 @@ pub fn apps_remove(session: &Session, query: &str, delete_prefix: bool, yes: boo
     apps.remove(&app.id);
     apps.save(&path)?;
     println!("removed    {} from MICA's list", app.name);
-    if delete_prefix {
-        if let Some(prefix) = &app.prefix {
-            let shared = apps.apps.iter().any(|other| other.prefix.as_ref() == Some(prefix));
-            if shared {
-                println!("kept       {} (other applications use it)", prefix.display());
-            } else if prefix.starts_with(session.dirs.prefixes())
-                && ui::confirm(&format!("Delete {} and everything installed in it?", prefix.display()), yes)
-            {
-                std::fs::remove_dir_all(prefix)?;
-                println!("deleted    {}", prefix.display());
-            }
+    if delete_prefix && let Some(prefix) = &app.prefix {
+        let shared = apps
+            .apps
+            .iter()
+            .any(|other| other.prefix.as_ref() == Some(prefix));
+        if shared {
+            println!(
+                "kept       {} (other applications use it)",
+                prefix.display()
+            );
+        } else if prefix.starts_with(session.dirs.prefixes())
+            && ui::confirm(
+                &format!(
+                    "Delete {} and everything installed in it?",
+                    prefix.display()
+                ),
+                yes,
+            )
+        {
+            std::fs::remove_dir_all(prefix)?;
+            println!("deleted    {}", prefix.display());
         }
     }
     Ok(ExitCode::SUCCESS)

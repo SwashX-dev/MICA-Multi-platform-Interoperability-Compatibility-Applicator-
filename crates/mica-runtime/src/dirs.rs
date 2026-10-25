@@ -26,7 +26,11 @@ pub struct Dirs {
 impl Dirs {
     /// MICA's directories for the current user, from the environment.
     pub fn current() -> Dirs {
-        let var = |name: &str| std::env::var_os(name).filter(|value| !value.is_empty()).map(PathBuf::from);
+        let var = |name: &str| {
+            std::env::var_os(name)
+                .filter(|value| !value.is_empty())
+                .map(PathBuf::from)
+        };
         Dirs::resolve(std::env::consts::OS, &var)
     }
 
@@ -59,14 +63,18 @@ impl Dirs {
                 }
             }
             _ => Dirs {
-                config: var("XDG_CONFIG_HOME").unwrap_or_else(|| home.join(".config")).join("mica"),
+                config: var("XDG_CONFIG_HOME")
+                    .unwrap_or_else(|| home.join(".config"))
+                    .join("mica"),
                 data: var("XDG_DATA_HOME")
                     .unwrap_or_else(|| home.join(".local").join("share"))
                     .join("mica"),
                 state: var("XDG_STATE_HOME")
                     .unwrap_or_else(|| home.join(".local").join("state"))
                     .join("mica"),
-                cache: var("XDG_CACHE_HOME").unwrap_or_else(|| home.join(".cache")).join("mica"),
+                cache: var("XDG_CACHE_HOME")
+                    .unwrap_or_else(|| home.join(".cache"))
+                    .join("mica"),
             },
         }
     }
@@ -122,20 +130,32 @@ mod tests {
 
     #[test]
     fn follows_each_platforms_conventions() {
-        let linux = Dirs::resolve("linux", &lookup(&[("HOME", "/home/u"), ("XDG_STATE_HOME", "/st")]));
+        let linux = Dirs::resolve(
+            "linux",
+            &lookup(&[("HOME", "/home/u"), ("XDG_STATE_HOME", "/st")]),
+        );
         assert_eq!(linux.config, PathBuf::from("/home/u/.config/mica"));
         assert_eq!(linux.data, PathBuf::from("/home/u/.local/share/mica"));
         assert_eq!(linux.state, PathBuf::from("/st/mica"));
-        assert_eq!(linux.prefixes(), PathBuf::from("/home/u/.local/share/mica/prefixes"));
+        assert_eq!(
+            linux.prefixes(),
+            PathBuf::from("/home/u/.local/share/mica/prefixes")
+        );
 
         let mac = Dirs::resolve("macos", &lookup(&[("HOME", "/Users/u")]));
         assert_eq!(mac.cache, PathBuf::from("/Users/u/Library/Caches/MICA"));
 
         let windows = Dirs::resolve(
             "windows",
-            &lookup(&[("APPDATA", r"C:\Users\u\AppData\Roaming"), ("LOCALAPPDATA", r"C:\L")]),
+            &lookup(&[
+                ("APPDATA", r"C:\Users\u\AppData\Roaming"),
+                ("LOCALAPPDATA", r"C:\L"),
+            ]),
         );
-        assert_eq!(windows.config, PathBuf::from(r"C:\Users\u\AppData\Roaming").join("MICA"));
+        assert_eq!(
+            windows.config,
+            PathBuf::from(r"C:\Users\u\AppData\Roaming").join("MICA")
+        );
         assert_eq!(windows.data, PathBuf::from(r"C:\L").join("MICA"));
 
         let portable = Dirs::resolve("linux", &lookup(&[("MICA_HOME", "/opt/m"), ("HOME", "/h")]));

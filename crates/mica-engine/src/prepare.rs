@@ -29,7 +29,10 @@ pub fn prepare(
     let mut plan = match runner {
         Runner::Direct => {
             if matches!(target.report.format, Format::AppBundle(_)) {
-                LaunchPlan::new("macOS (open)", "open").arg(path).arg("--args").args(args.iter().cloned())
+                LaunchPlan::new("macOS (open)", "open")
+                    .arg(path)
+                    .arg("--args")
+                    .args(args.iter().cloned())
             } else {
                 launch::native(path, args)
             }
@@ -37,7 +40,10 @@ pub fn prepare(
         Runner::PortableHost { path: host } => launch::portable_host(host, path),
         Runner::DosBox { path: dosbox } => launch::dosbox(dosbox, path),
         Runner::Wsl { path: wsl } => launch::wsl(wsl, path, args),
-        Runner::Translator { path: translator, name } => launch::translated(translator, name, path, args),
+        Runner::Translator {
+            path: translator,
+            name,
+        } => launch::translated(translator, name, path, args),
         Runner::Lima { path: lima } => LaunchPlan::new("Lima (Linux virtual machine)", lima)
             .args(["shell", "default", "--"])
             .arg(path)
@@ -58,7 +64,11 @@ pub fn prepare(
                 providers.join(", ")
             ));
         }
-        Runner::Umu { .. } | Runner::Proton { .. } | Runner::Wine { .. } | Runner::Crossover { .. } | Runner::GamePortingToolkit { .. } => {
+        Runner::Umu { .. }
+        | Runner::Proton { .. }
+        | Runner::Wine { .. }
+        | Runner::Crossover { .. }
+        | Runner::GamePortingToolkit { .. } => {
             let windows = windows_target(target, args, runtimes, dirs, prefix_name, extra_env);
             match runner {
                 Runner::Umu { path: umu, proton } => launch::umu(umu, proton.as_ref(), &windows),
@@ -66,13 +76,21 @@ pub fn prepare(
                     let install = runtimes
                         .steam
                         .iter()
-                        .find(|install| tool.dir.starts_with(&install.root) || install.libraries.iter().any(|library| tool.dir.starts_with(library)))
+                        .find(|install| {
+                            tool.dir.starts_with(&install.root)
+                                || install
+                                    .libraries
+                                    .iter()
+                                    .any(|library| tool.dir.starts_with(library))
+                        })
                         .or_else(|| runtimes.steam.first())
                         .ok_or("Proton needs a Steam installation")?;
                     launch::proton(install, tool, &windows)?
                 }
                 Runner::Wine { path: wine } => launch::wine(wine, &windows),
-                Runner::Crossover { path: wine, bottle } => launch::crossover(wine, bottle, &windows),
+                Runner::Crossover { path: wine, bottle } => {
+                    launch::crossover(wine, bottle, &windows)
+                }
                 Runner::GamePortingToolkit { path: wine } => {
                     let mut plan = launch::wine(wine, &windows);
                     plan.runner = "Apple Game Porting Toolkit (for evaluating ports)".into();
@@ -110,9 +128,10 @@ fn windows_target(
         .unwrap_or_else(|| "app".into());
     let prefix: PathBuf = match prefix_name {
         Some(name) => dirs.prefixes().join(name),
-        None => dirs
-            .prefixes()
-            .join(config::app_id(&name, target.path.parent().unwrap_or(&target.path))),
+        None => dirs.prefixes().join(config::app_id(
+            &name,
+            target.path.parent().unwrap_or(&target.path),
+        )),
     };
     let anticheats = target
         .scan
@@ -120,7 +139,10 @@ fn windows_target(
         .map(|scan| scan.detected())
         .unwrap_or_default();
     let eac = anticheats.contains(&mica_inspect::AntiCheat::EasyAntiCheat)
-        && target.scan.as_ref().is_some_and(|scan| scan.eac_proton_library);
+        && target
+            .scan
+            .as_ref()
+            .is_some_and(|scan| scan.eac_proton_library);
     let battleye = anticheats.contains(&mica_inspect::AntiCheat::BattlEye);
     WindowsTarget {
         executable: target.path.clone(),
@@ -128,8 +150,16 @@ fn windows_target(
         msi: target.report.installer == Some(Installer::WindowsInstaller),
         prefix,
         steam_app_id: target.steam_app_id.clone(),
-        eac_runtime: if eac { runtimes.anticheat.eac.clone() } else { None },
-        battleye_runtime: if battleye { runtimes.anticheat.battleye.clone() } else { None },
+        eac_runtime: if eac {
+            runtimes.anticheat.eac.clone()
+        } else {
+            None
+        },
+        battleye_runtime: if battleye {
+            runtimes.anticheat.battleye.clone()
+        } else {
+            None
+        },
         extra_env: extra_env
             .iter()
             .filter_map(|pair| pair.split_once('='))

@@ -28,12 +28,17 @@ fn policy_for(session: &Session, game: Option<&str>) -> Result<Policy> {
 }
 
 fn print_readiness(readiness: &Readiness) {
-    line("profile", "Easy Anti-Cheat Linux v2 (Epic, announced 2026-10-14)");
+    line(
+        "profile",
+        "Easy Anti-Cheat Linux v2 (Epic, announced 2026-10-14)",
+    );
     line(
         "verdict",
         match readiness.verdict {
             Verdict::Ready => "READY: every requirement MICA can check is met",
-            Verdict::Incomplete => "INCOMPLETE: nothing failed, but some requirements could not be checked",
+            Verdict::Incomplete => {
+                "INCOMPLETE: nothing failed, but some requirements could not be checked"
+            }
             Verdict::NotReady => "NOT READY: see the failed requirements below",
             Verdict::NotApplicable => "not applicable on this operating system",
         },
@@ -46,7 +51,11 @@ fn print_readiness(readiness: &Readiness) {
             println!("       {}", ui::wrap(detail, 7, 100));
         }
         if let Some(fix) = &finding.fix {
-            println!("       fix ({:?}): {}", fix.kind, ui::wrap(&fix.summary, 13, 100));
+            println!(
+                "       fix ({:?}): {}",
+                fix.kind,
+                ui::wrap(&fix.summary, 13, 100)
+            );
             for step in &fix.steps {
                 println!("         - {}", ui::wrap(step, 11, 100));
             }
@@ -117,7 +126,10 @@ pub fn check(session: &Session, game: Option<&str>, json: bool) -> Result<ExitCo
             if json {
                 ui::json(&check)?;
             } else {
-                line("platform", "Windows: anti-cheat runs natively, through each publisher's own client");
+                line(
+                    "platform",
+                    "Windows: anti-cheat runs natively, through each publisher's own client",
+                );
                 line("UEFI", ui::yes_no(check.uefi));
                 line("SecureBoot", ui::yes_no(check.secure_boot));
                 line(
@@ -157,7 +169,13 @@ pub fn check(session: &Session, game: Option<&str>, json: bool) -> Result<ExitCo
     }
 }
 
-pub fn boot_profile(session: &Session, apply: bool, rollback: bool, yes: bool, json: bool) -> Result<ExitCode> {
+pub fn boot_profile(
+    session: &Session,
+    apply: bool,
+    rollback: bool,
+    yes: bool,
+    json: bool,
+) -> Result<ExitCode> {
     if session.os() != Os::Linux {
         bail!("boot profiles are for Linux");
     }
@@ -187,7 +205,10 @@ pub fn boot_profile(session: &Session, apply: bool, rollback: bool, yes: bool, j
             .map(|finding| finding.title)
             .collect();
         if !other.is_empty() {
-            println!("Still failing, and not fixable by kernel parameters: {}", other.join(", "));
+            println!(
+                "Still failing, and not fixable by kernel parameters: {}",
+                other.join(", ")
+            );
         }
         return Ok(ExitCode::SUCCESS);
     }
@@ -219,7 +240,9 @@ pub fn boot_profile(session: &Session, apply: bool, rollback: bool, yes: bool, j
     if !apply {
         if plan.automatic {
             println!();
-            println!("Nothing was changed. To create this entry: sudo mica security boot-profile --apply");
+            println!(
+                "Nothing was changed. To create this entry: sudo mica security boot-profile --apply"
+            );
         }
         return Ok(ExitCode::SUCCESS);
     }

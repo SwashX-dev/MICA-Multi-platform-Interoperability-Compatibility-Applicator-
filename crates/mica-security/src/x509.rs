@@ -28,7 +28,9 @@ fn element(data: &[u8]) -> Option<(Element<'_>, &[u8])> {
             return None;
         }
         let bytes = data.get(2..2 + count)?;
-        let length = bytes.iter().fold(0usize, |acc, &byte| (acc << 8) | byte as usize);
+        let length = bytes
+            .iter()
+            .fold(0usize, |acc, &byte| (acc << 8) | byte as usize);
         (length, 2 + count)
     };
     let value = data.get(header..header.checked_add(length)?)?;
@@ -100,7 +102,9 @@ fn string_value(element: &Element) -> Option<String> {
         0x1E => {
             let units: Vec<u16> = element
                 .value
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u16::from_be_bytes([pair[0], pair[1]]))
                 .collect();
             Some(String::from_utf16_lossy(&units))
@@ -151,15 +155,20 @@ pub fn parse(der: &[u8]) -> Option<Certificate> {
     let fields = children(tbs.value)?;
     // [0] version is optional; skip it when present.
     let offset = usize::from(fields.first()?.tag == 0xA0);
-    let issuer = fields.get(offset + 2).filter(|field| field.tag == SEQUENCE)?;
-    let validity = fields.get(offset + 3).filter(|field| field.tag == SEQUENCE)?;
-    let subject = fields.get(offset + 4).filter(|field| field.tag == SEQUENCE)?;
-    let not_after = children(validity.value)
-        .and_then(|times| {
-            times
-                .get(1)
-                .map(|time| String::from_utf8_lossy(time.value).into_owned())
-        });
+    let issuer = fields
+        .get(offset + 2)
+        .filter(|field| field.tag == SEQUENCE)?;
+    let validity = fields
+        .get(offset + 3)
+        .filter(|field| field.tag == SEQUENCE)?;
+    let subject = fields
+        .get(offset + 4)
+        .filter(|field| field.tag == SEQUENCE)?;
+    let not_after = children(validity.value).and_then(|times| {
+        times
+            .get(1)
+            .map(|time| String::from_utf8_lossy(time.value).into_owned())
+    });
     Some(Certificate {
         subject: name(subject.value)?,
         issuer: name(issuer.value)?,
@@ -192,7 +201,10 @@ pub(crate) mod tests {
         let attribute = |oid: &[u8], text: &str| {
             tlv(
                 SET,
-                &tlv(SEQUENCE, &[tlv(OID, oid), tlv(0x0C, text.as_bytes())].concat()),
+                &tlv(
+                    SEQUENCE,
+                    &[tlv(OID, oid), tlv(0x0C, text.as_bytes())].concat(),
+                ),
             )
         };
         tlv(
@@ -207,7 +219,10 @@ pub(crate) mod tests {
 
     /// A structurally valid certificate with a fake key and signature.
     pub(crate) fn certificate(subject: (&str, &str), issuer: (&str, &str)) -> Vec<u8> {
-        let algorithm = tlv(SEQUENCE, &tlv(OID, &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 1, 1, 11]));
+        let algorithm = tlv(
+            SEQUENCE,
+            &tlv(OID, &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 1, 1, 11]),
+        );
         let validity = tlv(
             SEQUENCE,
             &[tlv(0x17, b"120101000000Z"), tlv(0x17, b"420101000000Z")].concat(),
@@ -221,7 +236,10 @@ pub(crate) mod tests {
                 name_der(issuer.0, issuer.1),
                 validity,
                 name_der(subject.0, subject.1),
-                tlv(SEQUENCE, &[algorithm.clone(), tlv(0x03, &[0, 1, 2, 3])].concat()),
+                tlv(
+                    SEQUENCE,
+                    &[algorithm.clone(), tlv(0x03, &[0, 1, 2, 3])].concat(),
+                ),
             ]
             .concat(),
         );
@@ -246,7 +264,11 @@ pub(crate) mod tests {
             Some("Fedora Project")
         );
         assert_eq!(certificate.not_after.as_deref(), Some("420101000000Z"));
-        assert_eq!(certificate.sha256, parse(&der).unwrap().sha256, "padding is not hashed");
+        assert_eq!(
+            certificate.sha256,
+            parse(&der).unwrap().sha256,
+            "padding is not hashed"
+        );
         assert_eq!(
             certificate.subject.display(),
             "Fedora Secure Boot CA, Fedora Project"

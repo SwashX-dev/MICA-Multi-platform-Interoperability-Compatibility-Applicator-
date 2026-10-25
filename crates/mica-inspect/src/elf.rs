@@ -76,7 +76,8 @@ pub(crate) fn inspect(data: &[u8], report: &mut Report) {
         )
     };
     let segments: Vec<Segment> = match (phoff, phentsize, phnum) {
-        (Some(phoff), Some(size), Some(count)) if size > 0 => (0..(count as usize).min(MAX_SEGMENTS))
+        (Some(phoff), Some(size), Some(count)) if size > 0 => (0..(count as usize)
+            .min(MAX_SEGMENTS))
             .map_while(|index| {
                 let at = usize::try_from(phoff).ok()? + index * size as usize;
                 read_segment(data, at, bits, endian)

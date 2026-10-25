@@ -118,8 +118,12 @@ pub fn detect(home: &Path, os: &str, program_data: Option<&Path>) -> EpicStatus 
             let manifests = data.join(r"Epic\EpicGamesLauncher\Data\Manifests");
             status.games = launcher_manifests(&manifests);
             for candidate in [
-                PathBuf::from(r"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe"),
-                PathBuf::from(r"C:\Program Files\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe"),
+                PathBuf::from(
+                    r"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe",
+                ),
+                PathBuf::from(
+                    r"C:\Program Files\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe",
+                ),
             ] {
                 if candidate.is_file() {
                     status.launcher = Some(candidate);
@@ -171,18 +175,22 @@ fn linux_launcher(home: &Path) -> Option<PathBuf> {
                 continue;
             }
             let text = std::fs::read_to_string(&path).unwrap_or_default();
-            if text.lines().any(|line| {
-                line.starts_with("Name=") && line.contains("Epic Games Launcher")
-            }) {
+            if text
+                .lines()
+                .any(|line| line.starts_with("Name=") && line.contains("Epic Games Launcher"))
+            {
                 return Some(path);
             }
         }
     }
     let applications = home.join("Applications");
-    std::fs::read_dir(&applications).ok()?.flatten().find_map(|entry| {
-        let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
-        (name.contains("epic") && name.ends_with(".appimage")).then(|| entry.path())
-    })
+    std::fs::read_dir(&applications)
+        .ok()?
+        .flatten()
+        .find_map(|entry| {
+            let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+            (name.contains("epic") && name.ends_with(".appimage")).then(|| entry.path())
+        })
 }
 
 #[cfg(test)]
@@ -203,7 +211,13 @@ mod tests {
         let status = detect(&root, "windows", Some(&root));
         assert_eq!(status.games.len(), 1);
         assert_eq!(status.games[0].app_name, "Fortnite");
-        assert!(status.games[0].executable.as_ref().unwrap().ends_with("FortniteLauncher.exe"));
+        assert!(
+            status.games[0]
+                .executable
+                .as_ref()
+                .unwrap()
+                .ends_with("FortniteLauncher.exe")
+        );
 
         let heroic = root.join(".config/heroic/legendaryConfig/legendary");
         std::fs::create_dir_all(&heroic).unwrap();
@@ -214,7 +228,11 @@ mod tests {
         .unwrap();
         let apps = root.join(".local/share/applications");
         std::fs::create_dir_all(&apps).unwrap();
-        std::fs::write(apps.join("epic.desktop"), "[Desktop Entry]\nName=Epic Games Launcher\n").unwrap();
+        std::fs::write(
+            apps.join("epic.desktop"),
+            "[Desktop Entry]\nName=Epic Games Launcher\n",
+        )
+        .unwrap();
         let status = detect(&root, "linux", None);
         assert_eq!(status.games[0].title, "Rocket League");
         assert_eq!(status.games[0].source, "heroic");

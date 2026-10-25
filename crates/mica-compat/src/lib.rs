@@ -341,8 +341,8 @@ impl Database {
     }
 
     pub fn from_sources(anticheat: &str, games: &[&str]) -> Result<Database, DatabaseError> {
-        let anticheat_file: AntiCheatFile =
-            toml::from_str(anticheat).map_err(|error| DatabaseError(format!("anticheat: {error}")))?;
+        let anticheat_file: AntiCheatFile = toml::from_str(anticheat)
+            .map_err(|error| DatabaseError(format!("anticheat: {error}")))?;
         if anticheat_file.schema != SCHEMA {
             return Err(DatabaseError(format!(
                 "anticheat: schema {} is not {SCHEMA}",
@@ -395,7 +395,9 @@ impl Database {
     }
 
     pub fn anticheat_policy(&self, anticheat: AntiCheat) -> Option<&AntiCheatPolicy> {
-        self.anticheat.iter().find(|policy| policy.id == anticheat.id())
+        self.anticheat
+            .iter()
+            .find(|policy| policy.id == anticheat.id())
     }
 
     /// What an anti-cheat permits on a route, if the catalog says.
@@ -553,7 +555,10 @@ mod tests {
             apex.route(Route::LinuxProton).unwrap().status,
             Status::BlockedByAntiCheat
         );
-        assert_eq!(database.find_by_steam_app("1172470").unwrap().id, "apex-legends");
+        assert_eq!(
+            database.find_by_steam_app("1172470").unwrap().id,
+            "apex-legends"
+        );
         assert_eq!(database.find("r5apex.exe").unwrap().id, "apex-legends");
 
         let valorant = database.find("VALORANT").unwrap();
@@ -604,52 +609,74 @@ mod tests {
 
     #[test]
     fn verified_playable_needs_a_multiplayer_direct_test() {
-        let no_test = game_with(r#"status = "verified-playable"
+        let no_test = game_with(
+            r#"status = "verified-playable"
             authorization = "per-game"
-            summary = "it launched""#);
+            summary = "it launched""#,
+        );
         let error = Database::from_sources(POLICY, &[&no_test]).unwrap_err();
         assert!(error.0.contains("needs a direct-test"), "{error}");
 
-        let menu_only = game_with(r#"status = "verified-playable"
+        let menu_only = game_with(
+            r#"status = "verified-playable"
             authorization = "per-game"
             summary = "reached the menu"
-            evidence = [{ kind = "direct-test", date = "2026-10-25", environment = "Fedora 43, RTX 4060" }]"#);
+            evidence = [{ kind = "direct-test", date = "2026-10-25", environment = "Fedora 43, RTX 4060" }]"#,
+        );
         let error = Database::from_sources(POLICY, &[&menu_only]).unwrap_err();
         assert!(error.0.contains("multiplayer session"), "{error}");
 
-        let played = game_with(r#"status = "verified-playable"
+        let played = game_with(
+            r#"status = "verified-playable"
             authorization = "per-game"
             summary = "played three online matches"
-            evidence = [{ kind = "direct-test", date = "2026-10-25", environment = "Fedora 43, RTX 4060", multiplayer_session = true }]"#);
+            evidence = [{ kind = "direct-test", date = "2026-10-25", environment = "Fedora 43, RTX 4060", multiplayer_session = true }]"#,
+        );
         let database = Database::from_sources(POLICY, &[&played]).unwrap();
         assert_eq!(
-            database.find("test").unwrap().route(Route::LinuxProton).unwrap().status,
+            database
+                .find("test")
+                .unwrap()
+                .route(Route::LinuxProton)
+                .unwrap()
+                .status,
             Status::VerifiedPlayable
         );
 
-        let forbidden = game_with(r#"status = "verified-playable"
+        let forbidden = game_with(
+            r#"status = "verified-playable"
             authorization = "forbidden"
             summary = "x"
-            evidence = [{ kind = "direct-test", date = "2026-10-25", environment = "e", multiplayer_session = true }]"#);
+            evidence = [{ kind = "direct-test", date = "2026-10-25", environment = "e", multiplayer_session = true }]"#,
+        );
         assert!(Database::from_sources(POLICY, &[&forbidden]).is_err());
     }
 
     #[test]
     fn blocks_need_sources_and_ids_must_be_known() {
-        let unsourced = game_with(r#"status = "blocked-by-anti-cheat"
+        let unsourced = game_with(
+            r#"status = "blocked-by-anti-cheat"
             authorization = "forbidden"
-            summary = "x""#);
+            summary = "x""#,
+        );
         assert!(Database::from_sources(POLICY, &[&unsourced]).is_err());
-        let unknown = game_with(r#"status = "unverified"
+        let unknown = game_with(
+            r#"status = "unverified"
             authorization = "unknown"
-            summary = "x""#)
+            summary = "x""#,
+        )
         .replace("easy-anti-cheat\"]", "made-up\"]");
         assert!(Database::from_sources(POLICY, &[&unknown]).is_err());
-        let typo = game_with(r#"status = "unverified"
+        let typo = game_with(
+            r#"status = "unverified"
             authorization = "unknown"
             summary = "x"
-            stauts = "oops""#);
-        assert!(Database::from_sources(POLICY, &[&typo]).is_err(), "unknown fields are errors");
+            stauts = "oops""#,
+        );
+        assert!(
+            Database::from_sources(POLICY, &[&typo]).is_err(),
+            "unknown fields are errors"
+        );
     }
 
     #[test]

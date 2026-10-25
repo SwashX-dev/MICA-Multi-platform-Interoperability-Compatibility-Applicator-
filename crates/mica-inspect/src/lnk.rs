@@ -59,7 +59,9 @@ pub fn parse(data: &[u8]) -> Option<Shortcut> {
         *at += bytes;
         Some(if unicode {
             let units: Vec<u16> = raw
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
                 .collect();
             String::from_utf16_lossy(&units)
@@ -118,7 +120,11 @@ pub(crate) mod tests {
 
     #[test]
     fn reads_target_and_arguments() {
-        let shortcut = parse(&build(r"C:\Program Files\Notepad++\notepad++.exe", "-multiInst")).unwrap();
+        let shortcut = parse(&build(
+            r"C:\Program Files\Notepad++\notepad++.exe",
+            "-multiInst",
+        ))
+        .unwrap();
         assert_eq!(shortcut.target, r"C:\Program Files\Notepad++\notepad++.exe");
         assert_eq!(shortcut.arguments.as_deref(), Some("-multiInst"));
         let data = build(r"C:\a.exe", "");

@@ -1,0 +1,5 @@
+# Golden traces and scripts are compared byte for byte on every platform, so
+# Git must not convert their line endings on Windows checkouts.
+tests/replay/* text eol=lf
+*.sh text eol=lf
+*.nu text eol=lf

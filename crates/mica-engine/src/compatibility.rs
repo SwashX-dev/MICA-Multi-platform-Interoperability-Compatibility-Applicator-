@@ -20,8 +20,18 @@ pub struct GameReport {
 /// The routes that matter on a host, in the order MICA would try them.
 pub fn routes_for(os: Os) -> &'static [Route] {
     match os {
-        Os::Linux => &[Route::LinuxNative, Route::LinuxProton, Route::LinuxVm, Route::Cloud],
-        Os::MacOs => &[Route::MacosNative, Route::MacosWine, Route::MacosVm, Route::Cloud],
+        Os::Linux => &[
+            Route::LinuxNative,
+            Route::LinuxProton,
+            Route::LinuxVm,
+            Route::Cloud,
+        ],
+        Os::MacOs => &[
+            Route::MacosNative,
+            Route::MacosWine,
+            Route::MacosVm,
+            Route::Cloud,
+        ],
         Os::Windows => &[Route::WindowsNative, Route::Cloud],
         Os::Other => &[Route::Cloud],
     }
@@ -76,9 +86,11 @@ pub fn report(database: &Database, game: &Game, host: &HostProfile) -> GameRepor
         }
         if let Some(readiness) = &readiness {
             recommendation.push(match readiness.verdict {
-                Verdict::Ready => "This system meets every EAC Linux v2 requirement MICA can check, \
+                Verdict::Ready => {
+                    "This system meets every EAC Linux v2 requirement MICA can check, \
                     so it should be ready when Epic enables the game on Linux."
-                    .into(),
+                        .into()
+                }
                 Verdict::Incomplete => "Some EAC Linux v2 requirements could not be checked; run \
                     `sudo mica security check` for the full picture."
                     .into(),
@@ -91,15 +103,18 @@ pub fn report(database: &Database, game: &Game, host: &HostProfile) -> GameRepor
         let mut options = vec![
             "install Windows on its own partition or drive (dual boot) and play there".to_string(),
         ];
-        if let Some(cloud) = game.route(Route::Cloud) {
-            if !cloud.providers.is_empty() {
-                options.push(format!(
-                    "play through {} (cloud streaming: the game runs remotely)",
-                    cloud.providers.join(", ")
-                ));
-            }
+        if let Some(cloud) = game.route(Route::Cloud)
+            && !cloud.providers.is_empty()
+        {
+            options.push(format!(
+                "play through {} (cloud streaming: the game runs remotely)",
+                cloud.providers.join(", ")
+            ));
         }
-        recommendation.push(format!("Officially supported options today: {}.", options.join("; or ")));
+        recommendation.push(format!(
+            "Officially supported options today: {}.",
+            options.join("; or ")
+        ));
     }
     recommendation.retain(|line| !line.is_empty());
     GameReport {

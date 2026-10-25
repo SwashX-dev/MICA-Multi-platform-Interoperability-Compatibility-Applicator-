@@ -31,13 +31,20 @@ fn capabilities(host: &HostProfile, runtimes: &Runtimes) -> Vec<Capability> {
             Some(proton) => format!("ready: umu-launcher with {}", proton.display_name),
             None => "ready: umu-launcher (it fetches UMU-Proton on first use)".into(),
         })
-        .or_else(|| runtimes.protons.first().map(|proton| format!("ready: {}", proton.display_name)))
+        .or_else(|| {
+            runtimes
+                .protons
+                .first()
+                .map(|proton| format!("ready: {}", proton.display_name))
+        })
         .or_else(|| {
             runtimes
                 .first(RuntimeKind::Wine)
                 .map(|wine| format!("ready: Wine {}", wine.version.clone().unwrap_or_default()))
         });
-    let portable = runtimes.first(RuntimeKind::PortableHost).map(|_| "ready: portable-host".to_string());
+    let portable = runtimes
+        .first(RuntimeKind::PortableHost)
+        .map(|_| "ready: portable-host".to_string());
     match host.os {
         Os::Linux => {
             rows.push(Capability {
@@ -47,8 +54,12 @@ fn capabilities(host: &HostProfile, runtimes: &Runtimes) -> Vec<Capability> {
             });
             rows.push(Capability {
                 programs: "Windows programs",
-                status: windows_runner.clone().unwrap_or_else(|| "needs a runtime".into()),
-                next_step: windows_runner.is_none().then(|| "mica setup windows".into()),
+                status: windows_runner
+                    .clone()
+                    .unwrap_or_else(|| "needs a runtime".into()),
+                next_step: windows_runner
+                    .is_none()
+                    .then(|| "mica setup windows".into()),
             });
             rows.push(Capability {
                 programs: "macOS programs",
@@ -76,7 +87,9 @@ fn capabilities(host: &HostProfile, runtimes: &Runtimes) -> Vec<Capability> {
                     ),
                     None => "needs WSL".into(),
                 },
-                next_step: wsl.is_none().then(|| "wsl --install (administrator terminal)".into()),
+                next_step: wsl
+                    .is_none()
+                    .then(|| "wsl --install (administrator terminal)".into()),
             });
             rows.push(Capability {
                 programs: "macOS programs",
@@ -104,7 +117,9 @@ fn capabilities(host: &HostProfile, runtimes: &Runtimes) -> Vec<Capability> {
                 .or(windows_runner.clone());
             rows.push(Capability {
                 programs: "Windows programs",
-                status: windows.clone().unwrap_or_else(|| "needs CrossOver or Wine".into()),
+                status: windows
+                    .clone()
+                    .unwrap_or_else(|| "needs CrossOver or Wine".into()),
                 next_step: windows.is_none().then(|| "mica setup windows".into()),
             });
             rows.push(Capability {
@@ -121,7 +136,8 @@ fn capabilities(host: &HostProfile, runtimes: &Runtimes) -> Vec<Capability> {
     }
     rows.push(Capability {
         programs: "WebAssembly components",
-        status: portable.unwrap_or_else(|| "needs portable-host (this repository's Portable Host)".into()),
+        status: portable
+            .unwrap_or_else(|| "needs portable-host (this repository's Portable Host)".into()),
         next_step: None,
     });
     rows.push(Capability {
@@ -159,7 +175,10 @@ pub fn doctor(session: &Session, json: bool) -> Result<ExitCode> {
     }
     println!("MICA {} doctor", env!("CARGO_PKG_VERSION"));
     println!();
-    line("system", format!("{} ({}, {})", host.os_name, host.os, host.arch));
+    line(
+        "system",
+        format!("{} ({}, {})", host.os_name, host.os, host.arch),
+    );
     if let Some(kernel) = &host.kernel {
         more(format!("kernel {kernel}"));
     }
@@ -189,7 +208,10 @@ pub fn doctor(session: &Session, json: bool) -> Result<ExitCode> {
             format!(
                 "{}{}",
                 gpu.name,
-                gpu.driver.as_ref().map(|driver| format!(" (driver {driver})")).unwrap_or_default()
+                gpu.driver
+                    .as_ref()
+                    .map(|driver| format!(" (driver {driver})"))
+                    .unwrap_or_default()
             ),
         );
     }
@@ -198,7 +220,11 @@ pub fn doctor(session: &Session, json: bool) -> Result<ExitCode> {
             "vulkan",
             format!(
                 "loader {}{}",
-                if host.vulkan.loader { "installed" } else { "not found" },
+                if host.vulkan.loader {
+                    "installed"
+                } else {
+                    "not found"
+                },
                 if host.vulkan.drivers.is_empty() {
                     String::new()
                 } else {
@@ -238,7 +264,11 @@ pub fn doctor(session: &Session, json: bool) -> Result<ExitCode> {
         if host.package_managers.is_empty() {
             "none recognised".to_string()
         } else {
-            host.package_managers.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+            host.package_managers
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
         },
     );
     let security = &host.security;
@@ -254,10 +284,18 @@ pub fn doctor(session: &Session, json: bool) -> Result<ExitCode> {
         ),
     ];
     if host.os == Os::Linux {
-        flags.push(format!("lockdown {}", security.lockdown.as_deref().unwrap_or("unavailable")));
+        flags.push(format!(
+            "lockdown {}",
+            security.lockdown.as_deref().unwrap_or("unavailable")
+        ));
         flags.push(format!(
             "BPF LSM {}",
-            ui::yes_no(security.lsms.as_ref().map(|lsms| lsms.iter().any(|lsm| lsm == "bpf")))
+            ui::yes_no(
+                security
+                    .lsms
+                    .as_ref()
+                    .map(|lsms| lsms.iter().any(|lsm| lsm == "bpf"))
+            )
         ));
     }
     line("security", flags.join(" · "));
@@ -272,7 +310,11 @@ pub fn doctor(session: &Session, json: bool) -> Result<ExitCode> {
                 "{}: {}{}",
                 runtime.kind,
                 runtime.name,
-                runtime.version.as_ref().map(|version| format!(" ({version})")).unwrap_or_default()
+                runtime
+                    .version
+                    .as_ref()
+                    .map(|version| format!(" ({version})"))
+                    .unwrap_or_default()
             ),
         );
         first = false;
@@ -281,7 +323,14 @@ pub fn doctor(session: &Session, json: bool) -> Result<ExitCode> {
         line("runtimes", "none found yet");
     }
     for install in &runtimes.steam {
-        line("steam", format!("{} ({} libraries)", install.root.display(), install.libraries.len()));
+        line(
+            "steam",
+            format!(
+                "{} ({} libraries)",
+                install.root.display(),
+                install.libraries.len()
+            ),
+        );
     }
 
     println!();
@@ -322,11 +371,20 @@ pub fn runtimes(session: &Session, json: bool) -> Result<ExitCode> {
     }
     for runtime in &runtimes.found {
         line(
-            &runtime.kind.to_string().chars().take(10).collect::<String>(),
+            &runtime
+                .kind
+                .to_string()
+                .chars()
+                .take(10)
+                .collect::<String>(),
             format!(
                 "{}{} — {}",
                 runtime.name,
-                runtime.version.as_ref().map(|version| format!(" ({version})")).unwrap_or_default(),
+                runtime
+                    .version
+                    .as_ref()
+                    .map(|version| format!(" ({version})"))
+                    .unwrap_or_default(),
                 runtime.path.display()
             ),
         );
@@ -334,20 +392,40 @@ pub fn runtimes(session: &Session, json: bool) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn setup(session: &Session, features: &[String], dry_run: bool, yes: bool) -> Result<ExitCode> {
-    let host = session.host();
+pub fn setup(
+    session: &Session,
+    features: &[String],
+    dry_run: bool,
+    yes: bool,
+    json: bool,
+) -> Result<ExitCode> {
+    let host = session.host_light();
     let wanted: Vec<Feature> = if features.is_empty() {
-        vec![if host.os == Os::Windows { Feature::Linux } else { Feature::Windows }]
+        vec![if host.os == Os::Windows {
+            Feature::Linux
+        } else {
+            Feature::Windows
+        }]
     } else {
         features
             .iter()
             .map(|name| {
                 Feature::parse(name).ok_or_else(|| {
-                    anyhow::anyhow!("unknown feature {name}: choose from windows, vulkan, vm, security, linux")
+                    anyhow::anyhow!(
+                        "unknown feature {name}: choose from windows, vulkan, vm, security, linux"
+                    )
                 })
             })
             .collect::<Result<_>>()?
     };
+    if json {
+        let plans: Vec<packages::InstallPlan> = wanted
+            .iter()
+            .map(|feature| packages::plan(host, *feature))
+            .collect();
+        ui::json(&plans)?;
+        return Ok(ExitCode::SUCCESS);
+    }
     for feature in wanted {
         let plan = packages::plan(host, feature);
         println!("{feature}:");
@@ -368,7 +446,9 @@ pub fn setup(session: &Session, features: &[String], dry_run: bool, yes: bool) -
             continue;
         }
         for command in &plan.commands {
-            let status = std::process::Command::new(&command[0]).args(&command[1..]).status()?;
+            let status = std::process::Command::new(&command[0])
+                .args(&command[1..])
+                .status()?;
             if !status.success() {
                 bail!("`{}` failed ({status})", command.join(" "));
             }
@@ -379,17 +459,23 @@ pub fn setup(session: &Session, features: &[String], dry_run: bool, yes: bool) -
 }
 
 fn mime_default(mime: &str) -> Option<String> {
-    let output = std::process::Command::new("xdg-mime").args(["query", "default", mime]).output().ok()?;
+    let output = std::process::Command::new("xdg-mime")
+        .args(["query", "default", mime])
+        .output()
+        .ok()?;
     let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
     (!text.is_empty()).then_some(text)
 }
 
 pub fn desktop_install(session: &Session, make_default: bool) -> Result<ExitCode> {
     if session.os() != Os::Linux {
-        bail!("desktop integration is for Linux; on Windows, Windows programs already open natively");
+        bail!(
+            "desktop integration is for Linux; on Windows, Windows programs already open natively"
+        );
     }
     let home = session.context.home().unwrap_or_default();
-    let applications = desktop::applications_dir(&home, session.context.env("XDG_DATA_HOME").map(Into::into));
+    let applications =
+        desktop::applications_dir(&home, session.context.env("XDG_DATA_HOME").map(Into::into));
     let path = desktop::install(&applications, &session.mica_exe())?;
     line("created", path.display());
     println!("\"MICA\" now appears under Open With for Windows programs and installers.");
@@ -405,16 +491,22 @@ pub fn desktop_install(session: &Session, make_default: bool) -> Result<ExitCode
                 .args(["default", desktop::ENTRY_NAME, mime])
                 .status()?;
         }
-        println!("MICA is now the default for them; previous defaults recorded in {}", record.display());
+        println!(
+            "MICA is now the default for them; previous defaults recorded in {}",
+            record.display()
+        );
     }
     Ok(ExitCode::SUCCESS)
 }
 
 pub fn desktop_remove(session: &Session) -> Result<ExitCode> {
     let home = session.context.home().unwrap_or_default();
-    let applications = desktop::applications_dir(&home, session.context.env("XDG_DATA_HOME").map(Into::into));
+    let applications =
+        desktop::applications_dir(&home, session.context.env("XDG_DATA_HOME").map(Into::into));
     for (mime, handler) in desktop::recorded_defaults(&session.dirs.undo()) {
-        let _ = std::process::Command::new("xdg-mime").args(["default", &handler, &mime]).status();
+        let _ = std::process::Command::new("xdg-mime")
+            .args(["default", &handler, &mime])
+            .status();
         println!("restored   {mime} -> {handler}");
     }
     if desktop::remove(&applications, &session.dirs.undo())? {
@@ -444,10 +536,14 @@ pub fn vm_check(session: &Session, json: bool) -> Result<ExitCode> {
     let runtimes = session.runtimes();
     if host.os != Os::Linux {
         let text = match host.os {
-            Os::Windows => "On Windows, Hyper-V (Pro, Enterprise, Education) runs virtual machines; \
-                            Linux programs are better served by WSL (`mica setup linux`).",
-            Os::MacOs => "On macOS, Windows 11 on Arm runs in Parallels Desktop, VMware Fusion, or \
-                          UTM; MICA does not manage those yet.",
+            Os::Windows => {
+                "On Windows, Hyper-V (Pro, Enterprise, Education) runs virtual machines; \
+                            Linux programs are better served by WSL (`mica setup linux`)."
+            }
+            Os::MacOs => {
+                "On macOS, Windows 11 on Arm runs in Parallels Desktop, VMware Fusion, or \
+                          UTM; MICA does not manage those yet."
+            }
             _ => "Not supported on this system.",
         };
         para("vm", text);
@@ -478,12 +574,20 @@ pub fn vm_check(session: &Session, json: bool) -> Result<ExitCode> {
     let swtpm = session.context.which("swtpm").is_some();
     let mut verdict = Vec::new();
     if host.virtualization.cpu_support == Some(false) {
-        verdict.push("The CPU does not report VT-x/AMD-V: enable virtualization in the firmware settings.".into());
+        verdict.push(
+            "The CPU does not report VT-x/AMD-V: enable virtualization in the firmware settings."
+                .into(),
+        );
     }
     if !host.virtualization.kvm {
-        verdict.push("KVM is not available: without it, a virtual machine is far too slow for Windows.".into());
+        verdict.push(
+            "KVM is not available: without it, a virtual machine is far too slow for Windows."
+                .into(),
+        );
     } else if !host.virtualization.kvm_accessible {
-        verdict.push("Add yourself to the kvm group (sudo usermod -aG kvm $USER) and log in again.".into());
+        verdict.push(
+            "Add yourself to the kvm group (sudo usermod -aG kvm $USER) and log in again.".into(),
+        );
     }
     if memory_gib.is_some_and(|gib| gib < 12) {
         verdict.push("Windows 11 needs 4 GB of its own; with under 12 GB in total, expect both systems to be slow.".into());
@@ -495,7 +599,9 @@ pub fn vm_check(session: &Session, json: bool) -> Result<ExitCode> {
                 .into(),
         );
     } else if host.security.iommu_groups == 0 {
-        verdict.push("Two GPUs, but the IOMMU is off: GPU passthrough needs AMD-Vi/VT-d enabled.".into());
+        verdict.push(
+            "Two GPUs, but the IOMMU is off: GPU passthrough needs AMD-Vi/VT-d enabled.".into(),
+        );
     } else {
         verdict.push(
             "Two GPUs and an active IOMMU: GPU passthrough may be possible (check that the second \
@@ -528,13 +634,48 @@ pub fn vm_check(session: &Session, json: bool) -> Result<ExitCode> {
         return Ok(ExitCode::SUCCESS);
     }
     line("cpu virt", ui::yes_no(check.cpu_virtualization));
-    line("kvm", if check.kvm_accessible { "available" } else if check.kvm { "present, not accessible" } else { "no" });
-    line("memory", check.memory_gib.map(|gib| format!("{gib} GiB")).unwrap_or_else(|| "unknown".into()));
+    line(
+        "kvm",
+        if check.kvm_accessible {
+            "available"
+        } else if check.kvm {
+            "present, not accessible"
+        } else {
+            "no"
+        },
+    );
+    line(
+        "memory",
+        check
+            .memory_gib
+            .map(|gib| format!("{gib} GiB"))
+            .unwrap_or_else(|| "unknown".into()),
+    );
     line("gpus", check.gpus);
     line("iommu", format!("{} groups", check.iommu_groups));
-    line("libvirt", if check.libvirt { "installed" } else { "not installed" });
-    line("firmware", check.uefi_firmware.clone().unwrap_or_else(|| "OVMF not found".into()));
-    line("swtpm", if check.swtpm { "installed" } else { "not installed" });
+    line(
+        "libvirt",
+        if check.libvirt {
+            "installed"
+        } else {
+            "not installed"
+        },
+    );
+    line(
+        "firmware",
+        check
+            .uefi_firmware
+            .clone()
+            .unwrap_or_else(|| "OVMF not found".into()),
+    );
+    line(
+        "swtpm",
+        if check.swtpm {
+            "installed"
+        } else {
+            "not installed"
+        },
+    );
     println!();
     for item in &check.verdict {
         para("-", item);
@@ -542,7 +683,14 @@ pub fn vm_check(session: &Session, json: bool) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-pub fn vm_plan(session: &Session, name: &str, iso: Option<&Path>, memory_gb: u32, cpus: u32, disk_gb: u32) -> Result<ExitCode> {
+pub fn vm_plan(
+    session: &Session,
+    name: &str,
+    iso: Option<&Path>,
+    memory_gb: u32,
+    cpus: u32,
+    disk_gb: u32,
+) -> Result<ExitCode> {
     if session.os() != Os::Linux {
         bail!("`mica vm plan` prints libvirt commands for Linux hosts");
     }
@@ -550,20 +698,29 @@ pub fn vm_plan(session: &Session, name: &str, iso: Option<&Path>, memory_gb: u32
         .map(|path| path.display().to_string())
         .unwrap_or_else(|| "/path/to/your/Win11.iso".into());
     println!("Create a Windows 11 virtual machine with your own installation media and license.");
-    println!("MICA does not download Windows. Microsoft offers the ISO at https://www.microsoft.com/software-download/windows11");
+    println!(
+        "MICA does not download Windows. Microsoft offers the ISO at https://www.microsoft.com/software-download/windows11"
+    );
     println!();
     println!("virt-install --connect qemu:///session \\");
-    println!("  --name {name} --memory {} --vcpus {cpus} --cpu host-passthrough \\", memory_gb * 1024);
+    println!(
+        "  --name {name} --memory {} --vcpus {cpus} --cpu host-passthrough \\",
+        memory_gb * 1024
+    );
     println!("  --os-variant win11 --cdrom '{iso}' \\");
     println!("  --disk size={disk_gb} --network user \\");
-    println!("  --boot firmware=efi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=yes \\");
+    println!(
+        "  --boot firmware=efi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=yes \\"
+    );
     println!("  --tpm backend.type=emulator,backend.version=2.0,model=tpm-crb \\");
     println!("  --graphics spice --video virtio");
     println!();
     println!("Needs virt-install 4.1 or newer, OVMF, and swtpm (`mica setup vm`). Then:");
     println!("  mica config set vm.libvirt_domain {name}");
     println!("  mica config set vm.libvirt_uri qemu:///session");
-    println!("and `mica run --backend vm <program>` starts it. Copy programs in, or share a folder");
+    println!(
+        "and `mica run --backend vm <program>` starts it. Copy programs in, or share a folder"
+    );
     println!("with virtiofs. 3D performance needs a second GPU passed through (`mica vm check`).");
     println!();
     para(
@@ -588,13 +745,39 @@ pub fn config_path(session: &Session) -> Result<ExitCode> {
 pub fn config_show(session: &Session) -> Result<ExitCode> {
     let config = &session.config;
     line("detect_games", config.detect_games);
-    line("windows.runtime", format!("{:?}", config.windows.runtime).to_lowercase());
-    line("windows.proton", config.windows.proton.as_deref().unwrap_or("(best installed)"));
-    line("windows.wine", config.windows.wine.as_deref().unwrap_or("(wine on PATH)"));
-    line("windows.bottle", config.windows.bottle.as_deref().unwrap_or("MICA"));
+    line(
+        "windows.runtime",
+        format!("{:?}", config.windows.runtime).to_lowercase(),
+    );
+    line(
+        "windows.proton",
+        config
+            .windows
+            .proton
+            .as_deref()
+            .unwrap_or("(best installed)"),
+    );
+    line(
+        "windows.wine",
+        config.windows.wine.as_deref().unwrap_or("(wine on PATH)"),
+    );
+    line(
+        "windows.bottle",
+        config.windows.bottle.as_deref().unwrap_or("MICA"),
+    );
     line("windows.env", config.windows.env.join(" "));
-    line("vm.libvirt_domain", config.vm.libvirt_domain.as_deref().unwrap_or("(none)"));
-    line("vm.libvirt_uri", config.vm.libvirt_uri.as_deref().unwrap_or("qemu:///session"));
+    line(
+        "vm.libvirt_domain",
+        config.vm.libvirt_domain.as_deref().unwrap_or("(none)"),
+    );
+    line(
+        "vm.libvirt_uri",
+        config
+            .vm
+            .libvirt_uri
+            .as_deref()
+            .unwrap_or("qemu:///session"),
+    );
     println!();
     println!("MICA has no telemetry: it sends nothing anywhere.");
     Ok(ExitCode::SUCCESS)
@@ -651,26 +834,42 @@ pub fn bench(session: &Session, iterations: u32, json: bool) -> Result<ExitCode>
     results.push(measure("decide a backend (no I/O)", iterations, || {
         let _ = mica_engine::decide(&inputs, &target, None);
     }));
-    results.push(measure("load the compatibility database", iterations, || {
-        let _ = mica_compat::Database::builtin();
-    }));
+    results.push(measure(
+        "load the compatibility database",
+        iterations,
+        || {
+            let _ = mica_compat::Database::builtin();
+        },
+    ));
     let probe_runs = iterations.min(5);
-    results.push(measure("probe the host (runs helper commands)", probe_runs, || {
-        let _ = mica_probe::probe_with(&session.context, Os::current());
-    }));
+    results.push(measure(
+        "probe the host (runs helper commands)",
+        probe_runs,
+        || {
+            let _ = mica_probe::probe_with(&session.context, Os::current());
+        },
+    ));
     let (program, args): (&str, &[&str]) = if cfg!(windows) {
         ("cmd", &["/C", "exit 0"])
     } else {
         ("true", &[])
     };
     let launches = iterations.min(50);
-    results.push(measure("start a trivial program directly", launches, || {
-        let _ = std::process::Command::new(program).args(args).status();
-    }));
+    results.push(measure(
+        "start a trivial program directly",
+        launches,
+        || {
+            let _ = std::process::Command::new(program).args(args).status();
+        },
+    ));
     let plan = mica_runtime::LaunchPlan::new("native", program).args(args.iter().copied());
-    results.push(measure("start it through MICA's launcher (no log)", launches, || {
-        let _ = plan.run(None, "bench");
-    }));
+    results.push(measure(
+        "start it through MICA's launcher (no log)",
+        launches,
+        || {
+            let _ = plan.run(None, "bench");
+        },
+    ));
     if json {
         ui::json(&results)?;
         return Ok(ExitCode::SUCCESS);
@@ -689,24 +888,34 @@ pub fn uninstall(session: &Session, yes: bool) -> Result<ExitCode> {
     println!("This removes what MICA created. It asks before each step.");
     for install in &session.runtimes().steam {
         if mica_runtime::steam::remove_tool(&install.root)? {
-            println!("removed    MICA's Steam compatibility tool from {}", install.root.display());
+            println!(
+                "removed    MICA's Steam compatibility tool from {}",
+                install.root.display()
+            );
         }
     }
     if session.os() == Os::Linux {
         let _ = desktop_remove(session);
-        let entries: Vec<String> = ["/boot/loader/entries", "/efi/loader/entries", "/boot/efi/loader/entries"]
-            .iter()
-            .flat_map(|dir| {
-                session
-                    .context
-                    .list(dir)
-                    .into_iter()
-                    .filter(|name| name.starts_with(mica_security::boot_profile::ENTRY_PREFIX))
-                    .map(move |name| format!("{dir}/{name}"))
-            })
-            .collect();
+        let entries: Vec<String> = [
+            "/boot/loader/entries",
+            "/efi/loader/entries",
+            "/boot/efi/loader/entries",
+        ]
+        .iter()
+        .flat_map(|dir| {
+            session
+                .context
+                .list(dir)
+                .into_iter()
+                .filter(|name| name.starts_with(mica_security::boot_profile::ENTRY_PREFIX))
+                .map(move |name| format!("{dir}/{name}"))
+        })
+        .collect();
         if !entries.is_empty() {
-            println!("MICA boot entries exist ({}); remove them with:", entries.join(", "));
+            println!(
+                "MICA boot entries exist ({}); remove them with:",
+                entries.join(", ")
+            );
             println!("  sudo mica security boot-profile --rollback");
         }
     }
@@ -736,7 +945,11 @@ pub fn uninstall(session: &Session, yes: bool) -> Result<ExitCode> {
         && ui::confirm(
             &format!(
                 "Delete MICA's settings, logs, and caches ({})?",
-                existing.iter().map(|dir| dir.display().to_string()).collect::<Vec<_>>().join(", ")
+                existing
+                    .iter()
+                    .map(|dir| dir.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
             yes,
         )
@@ -747,7 +960,19 @@ pub fn uninstall(session: &Session, yes: bool) -> Result<ExitCode> {
         }
     }
     println!();
-    println!("Finally, delete the mica program itself: {}", session.mica_exe().display());
-    println!("(or remove the package: sudo apt remove mica / sudo dnf remove mica / ...).");
+    println!(
+        "Finally, delete the mica program itself: {}",
+        session.mica_exe().display()
+    );
+    println!(
+        "{}",
+        match session.os() {
+            Os::Windows => r"(scripts\uninstall.ps1 does this and removes it from your PATH).",
+            Os::MacOs =>
+                "(scripts/uninstall.sh does this; or `nix profile remove mica` if Nix installed it).",
+            _ =>
+                "(scripts/uninstall.sh does this; or remove the package: sudo apt remove mica, sudo dnf remove mica, sudo pacman -R mica, sudo zypper remove mica).",
+        }
+    );
     Ok(ExitCode::SUCCESS)
 }

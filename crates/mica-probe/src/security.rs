@@ -99,7 +99,7 @@ impl SecurityFacts {
                 None if word == name => Some(None),
                 _ => None,
             })
-            .last()
+            .next_back()
     }
 }
 
@@ -145,18 +145,22 @@ pub(crate) fn probe_linux(context: &Context) -> SecurityFacts {
         facts.event_log = context.read_bytes(EVENT_LOG).filter(|log| !log.is_empty());
         facts.event_log_readable = facts.event_log.is_some();
         if !facts.event_log_readable {
-            facts
-                .needs_privilege
-                .push(format!("the measured-boot event log ({EVENT_LOG}) is readable only by root"));
+            facts.needs_privilege.push(format!(
+                "the measured-boot event log ({EVENT_LOG}) is readable only by root"
+            ));
         }
     }
 
     facts.lockdown = context
         .read("/sys/kernel/security/lockdown")
         .and_then(|text| active_choice(&text));
-    facts.lsms = context
-        .read("/sys/kernel/security/lsm")
-        .map(|text| text.split(',').map(str::trim).filter(|lsm| !lsm.is_empty()).map(str::to_string).collect());
+    facts.lsms = context.read("/sys/kernel/security/lsm").map(|text| {
+        text.split(',')
+            .map(str::trim)
+            .filter(|lsm| !lsm.is_empty())
+            .map(str::to_string)
+            .collect()
+    });
     facts.kexec_load_disabled = context
         .read("/proc/sys/kernel/kexec_load_disabled")
         .map(|value| value == "1");

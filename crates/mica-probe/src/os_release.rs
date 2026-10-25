@@ -100,8 +100,15 @@ fn family(id: &str, id_like: &[String]) -> Family {
         "arch" | "manjaro" | "endeavouros" | "cachyos" | "garuda" | "steamos" | "artix" => {
             Some(Family::Arch)
         }
-        "opensuse" | "opensuse-tumbleweed" | "opensuse-leap" | "opensuse-microos"
-        | "opensuse-aeon" | "opensuse-kalpa" | "opensuse-slowroll" | "suse" | "sles"
+        "opensuse"
+        | "opensuse-tumbleweed"
+        | "opensuse-leap"
+        | "opensuse-microos"
+        | "opensuse-aeon"
+        | "opensuse-kalpa"
+        | "opensuse-slowroll"
+        | "suse"
+        | "sles"
         | "sled" => Some(Family::Suse),
         "nixos" => Some(Family::Nix),
         "gentoo" => Some(Family::Gentoo),
@@ -119,7 +126,11 @@ fn unquote(value: &str) -> String {
     let inner = value
         .strip_prefix('"')
         .and_then(|rest| rest.strip_suffix('"'))
-        .or_else(|| value.strip_prefix('\'').and_then(|rest| rest.strip_suffix('\'')))
+        .or_else(|| {
+            value
+                .strip_prefix('\'')
+                .and_then(|rest| rest.strip_suffix('\''))
+        })
         .unwrap_or(value);
     inner.replace("\\\"", "\"").replace("\\\\", "\\")
 }
@@ -147,9 +158,10 @@ mod tests {
         assert_eq!(derivative.family, Family::Arch);
         assert_eq!(derivative.id_like, vec!["arch"]);
 
-        let tumbleweed =
-            parse("NAME=\"openSUSE Tumbleweed\"\nID=\"opensuse-tumbleweed\"\nID_LIKE=\"opensuse suse\"\n")
-                .unwrap();
+        let tumbleweed = parse(
+            "NAME=\"openSUSE Tumbleweed\"\nID=\"opensuse-tumbleweed\"\nID_LIKE=\"opensuse suse\"\n",
+        )
+        .unwrap();
         assert_eq!(tumbleweed.family, Family::Suse);
 
         let nixos = parse("ID=nixos\nVERSION_ID=\"26.05\"\n").unwrap();

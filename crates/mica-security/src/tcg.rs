@@ -164,12 +164,16 @@ pub struct VariableData {
 
 pub fn variable_data(event: &[u8]) -> Option<VariableData> {
     // VariableName GUID(16), UnicodeNameLength u64, VariableDataLength u64.
-    let name_length = usize::try_from(u64::from_le_bytes(event.get(16..24)?.try_into().ok()?)).ok()?;
-    let data_length = usize::try_from(u64::from_le_bytes(event.get(24..32)?.try_into().ok()?)).ok()?;
+    let name_length =
+        usize::try_from(u64::from_le_bytes(event.get(16..24)?.try_into().ok()?)).ok()?;
+    let data_length =
+        usize::try_from(u64::from_le_bytes(event.get(24..32)?.try_into().ok()?)).ok()?;
     let name_end = 32usize.checked_add(name_length.checked_mul(2)?)?;
     let units: Vec<u16> = event
         .get(32..name_end)?
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
         .collect();
     let data = event.get(name_end..name_end.checked_add(data_length)?)?;
@@ -252,10 +256,10 @@ impl EventLog {
 /// Firmware records an `EFI_SIGNATURE_DATA` (16-byte owner GUID, then the
 /// certificate); shim records the bare certificate. Accept both.
 fn authority_certificate(data: &[u8]) -> Option<Certificate> {
-    if data.first() == Some(&0x30) {
-        if let Some(certificate) = x509::parse(data) {
-            return Some(certificate);
-        }
+    if data.first() == Some(&0x30)
+        && let Some(certificate) = x509::parse(data)
+    {
+        return Some(certificate);
     }
     x509::parse(data.get(16..)?)
 }
@@ -294,13 +298,17 @@ pub(crate) mod tests {
             self.data.extend_from_slice(&1u32.to_le_bytes());
             self.data.extend_from_slice(&0x000Bu16.to_le_bytes());
             self.data.extend_from_slice(&[0x5A; 32]);
-            self.data.extend_from_slice(&(body.len() as u32).to_le_bytes());
+            self.data
+                .extend_from_slice(&(body.len() as u32).to_le_bytes());
             self.data.extend_from_slice(body);
             self
         }
 
         pub(crate) fn variable(self, pcr: u32, kind: u32, name: &str, value: &[u8]) -> LogBuilder {
-            let units: Vec<u8> = name.encode_utf16().flat_map(|unit| unit.to_le_bytes()).collect();
+            let units: Vec<u8> = name
+                .encode_utf16()
+                .flat_map(|unit| unit.to_le_bytes())
+                .collect();
             let mut body = vec![0x11; 16];
             body.extend_from_slice(&(name.encode_utf16().count() as u64).to_le_bytes());
             body.extend_from_slice(&(value.len() as u64).to_le_bytes());
@@ -317,8 +325,14 @@ pub(crate) mod tests {
     /// The log of a typical shim → GRUB → Fedora kernel Secure Boot.
     pub(crate) fn fedora_boot() -> Vec<u8> {
         let microsoft = certificate(
-            ("Microsoft Corporation UEFI CA 2011", "Microsoft Corporation"),
-            ("Microsoft Corporation Third Party Marketplace Root", "Microsoft Corporation"),
+            (
+                "Microsoft Corporation UEFI CA 2011",
+                "Microsoft Corporation",
+            ),
+            (
+                "Microsoft Corporation Third Party Marketplace Root",
+                "Microsoft Corporation",
+            ),
         );
         let mut signature_data = vec![0x22; 16];
         signature_data.extend_from_slice(&microsoft);
@@ -335,7 +349,11 @@ pub(crate) mod tests {
             .event(4, EV_EFI_BOOT_SERVICES_APPLICATION, &[0; 40])
             .variable(7, EV_EFI_VARIABLE_AUTHORITY, "Shim", &fedora)
             .event(4, EV_EFI_BOOT_SERVICES_APPLICATION, &[0; 40])
-            .event(8, EV_IPL, b"kernel_cmdline: /vmlinuz-6.17.4 root=UUID=1 ro lockdown=integrity\0")
+            .event(
+                8,
+                EV_IPL,
+                b"kernel_cmdline: /vmlinuz-6.17.4 root=UUID=1 ro lockdown=integrity\0",
+            )
             .event(4, EV_EFI_BOOT_SERVICES_APPLICATION, &[0; 40])
             .build()
     }
@@ -396,7 +414,10 @@ pub(crate) mod tests {
     #[test]
     fn sha1_only_logs() {
         let mut data = Vec::new();
-        for (pcr, kind, body) in [(0u32, 8u32, b"version".as_slice()), (4, EV_EFI_BOOT_SERVICES_APPLICATION, &[0u8; 8])] {
+        for (pcr, kind, body) in [
+            (0u32, 8u32, b"version".as_slice()),
+            (4, EV_EFI_BOOT_SERVICES_APPLICATION, &[0u8; 8]),
+        ] {
             data.extend_from_slice(&pcr.to_le_bytes());
             data.extend_from_slice(&kind.to_le_bytes());
             data.extend_from_slice(&[0; 20]);

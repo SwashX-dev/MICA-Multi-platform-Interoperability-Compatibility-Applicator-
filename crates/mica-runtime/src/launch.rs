@@ -88,7 +88,11 @@ impl LaunchPlan {
             .map(|(key, value)| format!("{key}={}", shell_quote(value)))
             .collect();
         words.push(shell_quote(&self.program.to_string_lossy()));
-        words.extend(self.args.iter().map(|arg| shell_quote(&arg.to_string_lossy())));
+        words.extend(
+            self.args
+                .iter()
+                .map(|arg| shell_quote(&arg.to_string_lossy())),
+        );
         words.join(" ")
     }
 
@@ -127,7 +131,11 @@ impl LaunchPlan {
                 if let Some(cwd) = &self.cwd {
                     writeln!(file, "cwd:     {}", cwd.display())?;
                 }
-                writeln!(file, "started: {}\n--- error output ---", crate::config::now_rfc3339())?;
+                writeln!(
+                    file,
+                    "started: {}\n--- error output ---",
+                    crate::config::now_rfc3339()
+                )?;
                 Some((path, file))
             }
             None => None,
@@ -307,13 +315,21 @@ pub fn proton(
         args.extend(["msiexec".to_string(), "/i".to_string()]);
     }
     args.push(target.executable.to_string_lossy().into_owned());
-    args.extend(target.args.iter().map(|arg| arg.to_string_lossy().into_owned()));
+    args.extend(
+        target
+            .args
+            .iter()
+            .map(|arg| arg.to_string_lossy().into_owned()),
+    );
     let command = steam::proton_command(install, tool, "waitforexitandrun", &args)?;
     let (program, rest) = command.split_first().expect("non-empty");
     let plan = LaunchPlan::new(&format!("Proton ({})", tool.display_name), program)
         .args(rest.iter().cloned())
         .env("STEAM_COMPAT_DATA_PATH", target.prefix.to_string_lossy())
-        .env("STEAM_COMPAT_CLIENT_INSTALL_PATH", install.root.to_string_lossy());
+        .env(
+            "STEAM_COMPAT_CLIENT_INSTALL_PATH",
+            install.root.to_string_lossy(),
+        );
     let mut plan = target.apply_common(plan);
     plan.prefix = Some(target.prefix.join("pfx"));
     Ok(plan)
@@ -370,7 +386,14 @@ pub fn windows_to_wsl_path(path: &str) -> String {
     if bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic() {
         let drive = (bytes[0] as char).to_ascii_lowercase();
         let rest = path[2..].replace('\\', "/");
-        return format!("/mnt/{drive}{}", if rest.starts_with('/') { rest } else { format!("/{rest}") });
+        return format!(
+            "/mnt/{drive}{}",
+            if rest.starts_with('/') {
+                rest
+            } else {
+                format!("/{rest}")
+            }
+        );
     }
     path.replace('\\', "/")
 }
@@ -412,7 +435,14 @@ mod tests {
         msi.args.clear();
         msi.msi = true;
         let plan = wine(Path::new("wine"), &msi);
-        assert_eq!(plan.args, vec![OsString::from("msiexec"), "/i".into(), "/dl/setup.msi".into()]);
+        assert_eq!(
+            plan.args,
+            vec![
+                OsString::from("msiexec"),
+                "/i".into(),
+                "/dl/setup.msi".into()
+            ]
+        );
     }
 
     #[test]
@@ -424,19 +454,43 @@ mod tests {
         let plan = proton(&installs[0], &tool, &target()).unwrap();
         assert!(plan.program.ends_with("_v2-entry-point"));
         assert_eq!(plan.args[0], OsString::from("--verb=waitforexitandrun"));
-        assert!(plan.env.iter().any(|(key, _)| key == "STEAM_COMPAT_DATA_PATH"));
+        assert!(
+            plan.env
+                .iter()
+                .any(|(key, _)| key == "STEAM_COMPAT_DATA_PATH")
+        );
         assert!(plan.prefix.as_ref().unwrap().ends_with("pfx"));
         std::fs::remove_dir_all(&home).unwrap();
     }
 
     #[test]
     fn translates_paths_for_wsl() {
-        assert_eq!(windows_to_wsl_path(r"C:\Users\me\a b\app"), "/mnt/c/Users/me/a b/app");
+        assert_eq!(
+            windows_to_wsl_path(r"C:\Users\me\a b\app"),
+            "/mnt/c/Users/me/a b/app"
+        );
         assert_eq!(windows_to_wsl_path(r"\\?\D:\games\x"), "/mnt/d/games/x");
-        assert_eq!(windows_to_wsl_path(r"\\wsl$\Ubuntu\home\me\app"), "/home/me/app");
-        assert_eq!(windows_to_wsl_path(r"\\wsl.localhost\kali-linux\usr\bin\ls"), "/usr/bin/ls");
-        let plan = wsl(Path::new(r"C:\Windows\System32\wsl.exe"), Path::new(r"C:\tools\hello"), &["x".into()]);
-        assert_eq!(plan.args, vec![OsString::from("--exec"), "/mnt/c/tools/hello".into(), "x".into()]);
+        assert_eq!(
+            windows_to_wsl_path(r"\\wsl$\Ubuntu\home\me\app"),
+            "/home/me/app"
+        );
+        assert_eq!(
+            windows_to_wsl_path(r"\\wsl.localhost\kali-linux\usr\bin\ls"),
+            "/usr/bin/ls"
+        );
+        let plan = wsl(
+            Path::new(r"C:\Windows\System32\wsl.exe"),
+            Path::new(r"C:\tools\hello"),
+            &["x".into()],
+        );
+        assert_eq!(
+            plan.args,
+            vec![
+                OsString::from("--exec"),
+                "/mnt/c/tools/hello".into(),
+                "x".into()
+            ]
+        );
     }
 
     #[test]

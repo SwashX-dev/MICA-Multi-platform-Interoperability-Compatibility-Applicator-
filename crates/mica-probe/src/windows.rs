@@ -102,17 +102,18 @@ fn apply(facts: &Facts, context: &Context, profile: &mut HostProfile) {
     };
     let model = facts.model.clone().unwrap_or_default();
     let manufacturer = facts.manufacturer.clone().unwrap_or_default();
-    profile.virtualization.guest_of = if model.contains("Virtual Machine") && manufacturer.contains("Microsoft") {
-        Some("microsoft hyper-v".into())
-    } else if model.contains("VMware") || manufacturer.contains("VMware") {
-        Some("vmware".into())
-    } else if model.contains("VirtualBox") {
-        Some("oracle virtualbox".into())
-    } else if manufacturer.contains("QEMU") || model.contains("KVM") {
-        Some("kvm".into())
-    } else {
-        None
-    };
+    profile.virtualization.guest_of =
+        if model.contains("Virtual Machine") && manufacturer.contains("Microsoft") {
+            Some("microsoft hyper-v".into())
+        } else if model.contains("VMware") || manufacturer.contains("VMware") {
+            Some("vmware".into())
+        } else if model.contains("VirtualBox") {
+            Some("oracle virtualbox".into())
+        } else if manufacturer.contains("QEMU") || model.contains("KVM") {
+            Some("kvm".into())
+        } else {
+            None
+        };
     profile.device.vendor = facts.manufacturer.clone();
     profile.device.product = facts.model.clone();
     profile.device.chassis = facts.chassis.first().map(|kind| {
@@ -147,7 +148,10 @@ fn apply(facts: &Facts, context: &Context, profile: &mut HostProfile) {
         .is_file();
 
     let security = &mut profile.security;
-    security.uefi = facts.firmware.as_deref().map(|kind| kind.eq_ignore_ascii_case("UEFI"));
+    security.uefi = facts
+        .firmware
+        .as_deref()
+        .map(|kind| kind.eq_ignore_ascii_case("UEFI"));
     security.secure_boot = facts.secureboot.map(|value| value == 1);
     let tpm = facts.tpm.clone().unwrap_or_default();
     security.tpm_present = Some(tpm.contains("Trusted Platform Module"));
@@ -156,7 +160,9 @@ fn apply(facts: &Facts, context: &Context, profile: &mut HostProfile) {
         .nth(1)
         .and_then(|rest| rest.trim().split('.').next())
         .and_then(|major| major.parse().ok());
-    profile.unknowns.extend(security.needs_privilege.iter().cloned());
+    profile
+        .unknowns
+        .extend(security.needs_privilege.iter().cloned());
 
     // An x86-64 MICA on an ARM64 PC runs under Windows' emulation.
     let identifier = context.env("PROCESSOR_IDENTIFIER").unwrap_or_default();

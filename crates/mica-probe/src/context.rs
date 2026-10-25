@@ -145,7 +145,10 @@ impl Context {
     }
 
     pub fn env(&self, key: &str) -> Option<&str> {
-        self.env.get(key).map(String::as_str).filter(|value| !value.is_empty())
+        self.env
+            .get(key)
+            .map(String::as_str)
+            .filter(|value| !value.is_empty())
     }
 
     pub fn home(&self) -> Option<PathBuf> {
@@ -189,11 +192,18 @@ impl Context {
 
 /// Decode command output that may be UTF-8 or UTF-16LE.
 pub fn decode_output(bytes: &[u8]) -> String {
-    let zeros = bytes.iter().skip(1).step_by(2).filter(|&&byte| byte == 0).count();
+    let zeros = bytes
+        .iter()
+        .skip(1)
+        .step_by(2)
+        .filter(|&&byte| byte == 0)
+        .count();
     let utf16 = bytes.len() >= 4 && zeros * 2 >= bytes.len() / 2;
     let text = if utf16 {
         let units: Vec<u16> = bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
             .collect();
         String::from_utf16_lossy(&units)
