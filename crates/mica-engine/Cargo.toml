@@ -6,3 +6,12 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 publish.workspace = true
+description = "MICA's decision engine: choose an execution backend for a program on this host, within what publishers permit"
+
+[dependencies]
+mica-compat.workspace = true
+mica-inspect.workspace = true
+mica-probe.workspace = true
+mica-runtime.workspace = true
+mica-security.workspace = true
+serde.workspace = true

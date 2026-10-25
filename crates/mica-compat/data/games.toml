@@ -1,0 +1,183 @@
+# MICA compatibility database: per-game results.
+#
+# status (what has been demonstrated):
+#   verified-playable     reproduced end to end, by a direct test MICA can
+#                         repeat; for multiplayer games protected by
+#                         anti-cheat, that means completing a protected online
+#                         session, not just reaching the menu
+#   partially-functional  runs, with documented limits
+#   unverified            nobody has demonstrated it either way
+#   blocked-by-anti-cheat the anti-cheat refuses this route
+#   blocked-by-publisher  the publisher does not offer or forbids this route
+#   unsupported           cannot work on this route for technical reasons
+#
+# authorization (what the publisher permits): see anticheat.toml.
+#
+# evidence kinds: official (publisher or platform statement), direct-test (a
+# reproducible test, with its environment), community (reports MICA could
+# not confirm). The loader rejects a verified-playable status without a
+# direct test, and a protected multiplayer game without a multiplayer test.
+
+schema = 1
+updated = "2026-10-25"
+
+[[game]]
+id = "fortnite"
+name = "Fortnite"
+aliases = ["fortnite battle royale"]
+publisher = "Epic Games"
+anticheat = ["easy-anti-cheat"]
+multiplayer = true
+executables = ["FortniteClient-Win64-Shipping.exe", "FortniteLauncher.exe"]
+stores = { epic = "Fortnite" }
+eac_linux_v2 = "pilot"
+notes = [
+  "Epic plans to pilot EAC Linux v2 in Fortnite and to bring Fortnite to Linux through the Epic Games Launcher once EAC Linux v2 works with a critical mass of distributions. No date has been announced.",
+  "The Epic Games Launcher Preview runs natively on Linux (x64, AppImage or .deb; Ubuntu 22.04+, Fedora 43+, Debian 12+ officially) since 2026-10-14.",
+]
+
+[game.routes.windows-native]
+status = "unverified"
+authorization = "authorized"
+summary = "Fortnite's supported PC platform."
+evidence = [{ kind = "official", url = "https://www.epicgames.com/help/c-34254770/c-38015632/can-i-run-fortnite-on-windows-parallels-or-other-non-native-operating-systems-on-pc-a25107496", date = "2026-10-25", summary = "Epic lists Windows system requirements and cloud alternatives." }]
+
+[game.routes.linux-native]
+status = "blocked-by-publisher"
+authorization = "planned"
+summary = "Not available on Linux yet. Epic says Fortnite will come to Linux through the Epic Games Launcher once EAC Linux v2 works with a critical mass of distribution maintainers."
+evidence = [
+  { kind = "official", url = "https://www.epicgames.com/help/c-34254770/c-33726977/can-i-play-fortnite-on-linux-a22610900", date = "2026-10-25", summary = "\"No, Fortnite isn't available on Linux yet.\"" },
+  { kind = "official", url = "https://store.epicgames.com/news/epic-games-launcher-preview", date = "2026-10-14", summary = "Fortnite is coming to Linux on the Launcher; no date." },
+  { kind = "official", url = "https://onlineservices.epicgames.com/news/introducing-easy-anti-cheat-linux-v2", date = "2026-10-14", summary = "EAC Linux v2 requirements; pilot in Fortnite." },
+]
+issues = ["Requires EAC Linux v2, which Epic has not released to players."]
+
+[game.routes.linux-proton]
+status = "blocked-by-anti-cheat"
+authorization = "forbidden"
+summary = "Epic has not enabled Easy Anti-Cheat for Wine/Proton in Fortnite, which is why Fortnite is not on Linux today; Epic's announced path is a Linux release with EAC Linux v2, not Proton."
+evidence = [{ kind = "official", url = "https://onlineservices.epicgames.com/news/introducing-easy-anti-cheat-linux-v2", date = "2026-10-14", summary = "Wine/Proton support is opt-in per game, and many games have not opted in; \"This is why Fortnite isn't available on Linux yet\"." }]
+
+[game.routes.linux-vm]
+status = "blocked-by-publisher"
+authorization = "forbidden"
+summary = "Fortnite does not run in virtual machines."
+evidence = [{ kind = "official", url = "https://www.epicgames.com/help/c-34254770/c-38015632/can-i-run-fortnite-on-windows-parallels-or-other-non-native-operating-systems-on-pc-a25107496", date = "2026-10-25", summary = "\"The game is not supported and cannot run on non-native operating systems, such as Windows Parallels installed on Mac or Linux devices, Virtual machines, or any other non-natively installed OS.\"" }]
+
+[game.routes.macos-vm]
+status = "blocked-by-publisher"
+authorization = "forbidden"
+summary = "Windows in Parallels or another virtual machine is not supported."
+evidence = [{ kind = "official", url = "https://www.epicgames.com/help/c-34254770/c-38015632/can-i-run-fortnite-on-windows-parallels-or-other-non-native-operating-systems-on-pc-a25107496", date = "2026-10-25", summary = "Parallels and virtual machines are named explicitly." }]
+
+[game.routes.cloud]
+status = "unverified"
+authorization = "authorized"
+summary = "Epic points players who cannot run Fortnite natively to GeForce NOW, Amazon Luna, and Xbox Cloud Gaming. This is remote play on another computer, not local compatibility."
+providers = ["GeForce NOW", "Amazon Luna", "Xbox Cloud Gaming"]
+evidence = [{ kind = "official", url = "https://www.epicgames.com/help/c-34254770/c-38015632/can-i-run-fortnite-on-windows-parallels-or-other-non-native-operating-systems-on-pc-a25107496", date = "2026-10-25", summary = "Links to GeForce NOW, Amazon Luna, and Xbox Cloud Gaming." }]
+
+[[game]]
+id = "apex-legends"
+name = "Apex Legends"
+aliases = ["apex"]
+publisher = "Electronic Arts / Respawn"
+anticheat = ["ea-javelin"]
+multiplayer = true
+executables = ["r5apex.exe", "r5apex_dx12.exe"]
+stores = { steam = "1172470" }
+notes = [
+  "Apex Legends switched its PC anti-cheat from Easy Anti-Cheat to EA Javelin Anticheat on 2026-09-29. Easy Anti-Cheat's Linux support (including EAC Linux v2) therefore does not apply to Apex.",
+  "EA blocked Linux, including the Steam Deck, before the switch; EA's suggested option for handhelds is to install Windows.",
+]
+
+[game.routes.windows-native]
+status = "unverified"
+authorization = "authorized"
+summary = "Supported on Windows through Steam, the EA app, and the Epic Games Store. EA says Apex does not require Secure Boot at this time."
+evidence = [{ kind = "official", url = "https://www.ea.com/games/apex-legends/apex-legends/news/javelin-anticheat-announcement", date = "2026-09-24", summary = "Javelin from 2026-09-29; no Secure Boot requirement for Apex at this time." }]
+
+[game.routes.linux-native]
+status = "blocked-by-publisher"
+authorization = "forbidden"
+summary = "No Linux client; EA blocks Linux."
+evidence = [{ kind = "official", url = "https://forums.ea.com/blog/apex-legends-game-info-hub-en/dev-team-update-linux--anti-cheat/9468053", date = "2026-10-25", summary = "\"Linux (and Steam Deck using Linux) will no longer be able to access Apex Legends.\"" }]
+
+[game.routes.linux-proton]
+status = "blocked-by-anti-cheat"
+authorization = "forbidden"
+summary = "EA blocks Linux, Proton included, and EA Javelin Anticheat has no Linux or Proton support."
+evidence = [
+  { kind = "official", url = "https://forums.ea.com/blog/apex-legends-game-info-hub-en/dev-team-update-linux--anti-cheat/9468053", date = "2026-10-25", summary = "Linux blocked to reduce cheating." },
+  { kind = "official", url = "https://www.ea.com/games/apex-legends/apex-legends/news/javelin-anticheat-announcement", date = "2026-09-24", summary = "Apex moves to EA Javelin Anticheat." },
+  { kind = "community", url = "https://www.protondb.com/app/1172470", date = "2026-10-25", summary = "ProtonDB lists Apex as unsupported; user reports cite the anti-cheat." },
+]
+
+[game.routes.linux-vm]
+status = "unverified"
+authorization = "unknown"
+summary = "MICA found no EA statement allowing virtual machines, so MICA does not offer one for Apex's protected multiplayer."
+evidence = []
+
+[game.routes.cloud]
+status = "unverified"
+authorization = "unknown"
+summary = "MICA has not confirmed which cloud services currently offer Apex Legends; check the service's own catalog."
+evidence = []
+
+[[game]]
+id = "valorant"
+name = "VALORANT"
+aliases = ["valorant"]
+publisher = "Riot Games"
+anticheat = ["riot-vanguard"]
+multiplayer = true
+executables = ["VALORANT.exe", "VALORANT-Win64-Shipping.exe"]
+notes = ["Riot Vanguard is a Windows kernel driver that loads at boot."]
+
+[game.routes.windows-native]
+status = "unverified"
+authorization = "authorized"
+summary = "Windows only."
+evidence = []
+
+[game.routes.linux-proton]
+status = "blocked-by-anti-cheat"
+authorization = "forbidden"
+summary = "Vanguard does not run under Wine or Proton, and Riot does not support Linux."
+evidence = [{ kind = "community", url = "https://www.gamingonlinux.com/2024/01/league-of-legends-likely-unplayable-on-linux-steam-deck-soon-due-to-vanguard-anti-cheat/", date = "2024-01", summary = "Riot staff statements against Wine support, relayed secondhand." }]
+
+[game.routes.linux-vm]
+status = "blocked-by-anti-cheat"
+authorization = "forbidden"
+summary = "Vanguard refuses virtual machines with error VAN 9100."
+evidence = [{ kind = "official", url = "https://support.riotgames.com/en-us/riot/client/error-van-9100", date = "2026-07-16", summary = "\"Riot Vanguard is not supported in virtual machine environments.\"" }]
+
+[game.routes.macos-vm]
+status = "blocked-by-anti-cheat"
+authorization = "forbidden"
+summary = "Vanguard refuses virtual machines with error VAN 9100."
+evidence = [{ kind = "official", url = "https://support.riotgames.com/en-us/riot/client/error-van-9100", date = "2026-07-16", summary = "VAN 9100: unsupported virtualized environment." }]
+
+[[game]]
+id = "league-of-legends"
+name = "League of Legends"
+aliases = ["lol", "league"]
+publisher = "Riot Games"
+anticheat = ["riot-vanguard"]
+multiplayer = true
+executables = ["League of Legends.exe", "LeagueClient.exe"]
+notes = ["League of Legends adopted Riot Vanguard in 2024."]
+
+[game.routes.linux-proton]
+status = "blocked-by-anti-cheat"
+authorization = "forbidden"
+summary = "Vanguard does not run under Wine or Proton."
+evidence = [{ kind = "community", url = "https://www.gamingonlinux.com/2024/01/league-of-legends-likely-unplayable-on-linux-steam-deck-soon-due-to-vanguard-anti-cheat/", date = "2024-01", summary = "Vanguard's arrival ended League on Linux; Riot statements relayed secondhand." }]
+
+[game.routes.linux-vm]
+status = "blocked-by-anti-cheat"
+authorization = "forbidden"
+summary = "Vanguard refuses virtual machines with error VAN 9100."
+evidence = [{ kind = "official", url = "https://support.riotgames.com/en-us/riot/client/error-van-9100", date = "2026-07-16", summary = "VAN 9100." }]

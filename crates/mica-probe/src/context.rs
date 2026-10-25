@@ -47,9 +47,20 @@ impl Context {
             .iter()
             .map(|(key, value)| (key.to_string(), value.to_string()))
             .collect();
+        // Over the real root, PATH uses the host's separator; over a fake
+        // tree, it is a Unix PATH resolved inside the tree.
         let path = env
             .get("PATH")
-            .map(|value| value.split(':').map(|dir| root.join(dir.trim_start_matches('/'))).collect())
+            .map(|value| {
+                if root == Path::new("/") {
+                    std::env::split_paths(value).collect()
+                } else {
+                    value
+                        .split(':')
+                        .map(|dir| root.join(dir.trim_start_matches('/')))
+                        .collect()
+                }
+            })
             .unwrap_or_default();
         Context {
             root: root.to_path_buf(),
