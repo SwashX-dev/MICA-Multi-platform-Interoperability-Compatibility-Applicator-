@@ -1,0 +1,13 @@
+[package]
+name = "mica-inspect"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Identify executables, installers, and bundles (PE, ELF, Mach-O, WebAssembly, MSI) without running them"
+
+[dependencies]
+serde.workspace = true
+sha2.workspace = true

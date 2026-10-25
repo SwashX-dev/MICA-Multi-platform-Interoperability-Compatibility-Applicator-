@@ -1,0 +1,150 @@
+# MICA anti-cheat catalog.
+#
+# What each anti-cheat vendor or publisher permits on each execution route.
+# This is policy, not test results: per-game results live in games.toml.
+#
+# authorization:
+#   authorized  the vendor supports this route
+#   per-game    each game's developer or publisher opts in (or not)
+#   planned     announced, not available yet
+#   forbidden   the vendor or publisher refuses this route
+#   unknown     MICA has found no authoritative statement
+#
+# Every claim carries a source. "official" sources are the vendor's or
+# publisher's own pages; "community" sources are reports MICA could not
+# confirm with the vendor and must not be presented as policy.
+
+schema = 1
+updated = "2026-10-25"
+
+[[anticheat]]
+id = "easy-anti-cheat"
+name = "Easy Anti-Cheat"
+vendor = "Epic Games"
+summary = "Kernel driver on Windows. On Linux, a user-space module that each game's developer enables for native Linux builds or for Proton; EAC Linux v2, announced 2026-10-14, adds platform-integrity requirements and is being piloted in Fortnite."
+
+[anticheat.routes.linux-native]
+authorization = "per-game"
+summary = "EAC has supported native Linux game clients since 2014; each game enables it."
+sources = [{ kind = "official", url = "https://onlineservices.epicgames.com/news/introducing-easy-anti-cheat-linux-v2", date = "2026-10-14" }]
+
+[anticheat.routes.linux-proton]
+authorization = "per-game"
+summary = "Works under Proton only when the developer enables it (EAC added Wine/Proton support in 2021). Valve's documentation has developers ship easyanticheat_x64.so beside EasyAntiCheat_x64.dll; MICA treats that file as the opt-in signal. EAC Linux v2 will add Epic's platform requirements for games that choose it."
+sources = [
+  { kind = "official", url = "https://partner.steamgames.com/doc/steamhardware/proton", date = "2026-10-25" },
+  { kind = "official", url = "https://onlineservices.epicgames.com/news/introducing-easy-anti-cheat-linux-v2", date = "2026-10-14" },
+]
+
+[anticheat.routes.linux-vm]
+authorization = "unknown"
+summary = "Decided per game by the publisher; Fortnite forbids virtual machines."
+sources = []
+
+[anticheat.routes.macos-native]
+authorization = "per-game"
+summary = "Native macOS game clients can use EAC when the game ships one."
+sources = []
+
+[anticheat.routes.macos-wine]
+authorization = "unknown"
+summary = "No vendor statement covers Wine, CrossOver, or the Game Porting Toolkit on macOS."
+sources = []
+
+[[anticheat]]
+id = "battleye"
+name = "BattlEye"
+vendor = "BattlEye Innovations"
+summary = "Kernel driver on Windows. Proton supports BattlEye-protected games that the developer has had configured by Valve and BattlEye."
+
+[anticheat.routes.linux-proton]
+authorization = "per-game"
+summary = "Proton supports BattlEye; each title needs a manual configuration step through Valve or BattlEye."
+sources = [{ kind = "official", url = "https://partner.steamgames.com/doc/steamhardware/proton", date = "2026-10-25" }]
+
+[anticheat.routes.linux-vm]
+authorization = "unknown"
+summary = "Decided per game."
+sources = []
+
+[[anticheat]]
+id = "ea-javelin"
+name = "EA Javelin Anticheat"
+vendor = "Electronic Arts"
+summary = "EA's own PC anti-cheat, used by Battlefield, EA SPORTS FC, Madden NFL, F1, and (since 2026-09-29) Apex Legends. Windows only."
+
+[anticheat.routes.linux-proton]
+authorization = "forbidden"
+summary = "EA ships no Linux or Proton support. EA blocked Linux, including the Steam Deck, from Apex Legends, saying it cannot tell a legitimate Steam Deck from a cheat claiming to be one. A 2026 EA job listing about future Linux/Proton support is exploration, not a commitment."
+sources = [
+  { kind = "official", url = "https://forums.ea.com/blog/apex-legends-game-info-hub-en/dev-team-update-linux--anti-cheat/9468053", date = "2026-10-25" },
+  { kind = "official", url = "https://www.ea.com/games/apex-legends/apex-legends/news/javelin-anticheat-announcement", date = "2026-09-24" },
+  { kind = "community", url = "https://gamingonlinux.com/2026/03/ea-javelin-anticheat-job-listing-mentions-future-support-for-linux-and-proton", date = "2026-03" },
+]
+
+[anticheat.routes.linux-native]
+authorization = "forbidden"
+summary = "No EA title using Javelin has a Linux client."
+sources = [{ kind = "official", url = "https://forums.ea.com/blog/apex-legends-game-info-hub-en/dev-team-update-linux--anti-cheat/9468053", date = "2026-10-25" }]
+
+[anticheat.routes.linux-vm]
+authorization = "unknown"
+summary = "MICA found no EA statement about virtual machines; MICA does not offer a VM for protected multiplayer without explicit permission."
+sources = []
+
+[[anticheat]]
+id = "riot-vanguard"
+name = "Riot Vanguard"
+vendor = "Riot Games"
+summary = "Windows kernel anti-cheat used by VALORANT and the Windows League of Legends client. Qualifying Windows configurations support Riot's on-demand mode; this does not provide Linux compatibility."
+
+[anticheat.routes.linux-proton]
+authorization = "forbidden"
+summary = "Vanguard is a Windows kernel driver and Riot does not support Linux or Wine. (Riot staff statements, relayed by GamingOnLinux; MICA found no current Riot support page about Linux.)"
+sources = [{ kind = "community", url = "https://www.gamingonlinux.com/2024/01/league-of-legends-likely-unplayable-on-linux-steam-deck-soon-due-to-vanguard-anti-cheat/", date = "2024-01" }]
+
+[anticheat.routes.linux-vm]
+authorization = "forbidden"
+summary = "Riot: \"Riot Vanguard is not supported in virtual machine environments\" (error VAN 9100)."
+sources = [{ kind = "official", url = "https://support.riotgames.com/en-us/riot/client/error-van-9100", date = "2026-07-16" }]
+
+[anticheat.routes.macos-vm]
+authorization = "forbidden"
+summary = "Virtual machines, Parallels included, are refused (VAN 9100)."
+sources = [{ kind = "official", url = "https://support.riotgames.com/en-us/riot/client/error-van-9100", date = "2026-07-16" }]
+
+[[anticheat]]
+id = "nprotect-gameguard"
+name = "nProtect GameGuard"
+vendor = "INCA Internet"
+summary = "Not yet researched by MICA. MICA reports it when detected and makes no compatibility claim."
+
+[[anticheat]]
+id = "xigncode3"
+name = "XIGNCODE3"
+vendor = "Wellbia"
+summary = "Not yet researched by MICA. MICA reports it when detected and makes no compatibility claim."
+
+[[anticheat]]
+id = "punkbuster"
+name = "PunkBuster"
+vendor = "Even Balance"
+summary = "A legacy anti-cheat in older games. Not yet researched by MICA."
+
+[[anticheat]]
+id = "mhyprot"
+name = "mhyprot (HoYoverse)"
+vendor = "HoYoverse"
+summary = "A kernel driver used by HoYoverse games on Windows. Not yet researched by MICA."
+
+[[anticheat]]
+id = "faceit"
+name = "FACEIT"
+vendor = "FACEIT"
+summary = "A kernel-level anti-cheat client for FACEIT matchmaking, installed separately from games. Not yet researched by MICA."
+
+[[anticheat]]
+id = "ricochet"
+name = "RICOCHET"
+vendor = "Activision"
+summary = "Call of Duty's anti-cheat, with a Windows kernel driver. Not yet researched by MICA."

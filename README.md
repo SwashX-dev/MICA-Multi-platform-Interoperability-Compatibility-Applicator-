@@ -1,200 +1,336 @@
-# MICA: Multi-platform Interoperability Compatibility Applicator
+# MICA
 
-MICA explores running one application on any operating system and CPU
-architecture. The application says *what* it wants through a typed, versioned
-contract; a native host decides *how*.
+**Multi-platform Interoperability Compatibility Applicator** helps you inspect,
+install, and run applications using the compatibility tools available on your
+computer. Start with `mica doctor`; use `mica plan` to see how an application
+would run before launching it.
 
-This repository holds the first vertical slice, **Portable Host v0**. A small
-game, a square you move around the screen, is compiled once into a 30 KB
-WebAssembly component. That exact file runs:
+MICA is an early **0.1.0 development version**. It coordinates native execution,
+Wine/Proton, WSL, and other runtimes. It does not turn every application into a
+cross-platform application, provide a Windows kernel, or bypass anti-cheat.
 
-- in a native **SDL3 window** with keyboard controls (`portable-host play`), and
-- **headless**, from a script, producing a deterministic trace of every frame
-  (`portable-host replay`),
+The original WebAssembly **Portable Host v0** remains a separate subsystem.
+Its complete instructions, keys, replay format, Windows MSI, Nix outputs, and
+application-writing guide are preserved in [Portable Host](docs/PORTABLE-HOST.md).
 
-on **Linux x86-64**, **Linux ARM64**, and **Windows x86-64** hosts, and it
-installs on Windows from an `.msi`. The ARM64 host has so far run only under
-QEMU user-mode emulation, and the Windows host only under Wine on Linux, never
-on Windows itself; [docs/VALIDATION.md](docs/VALIDATION.md) records exactly
-what was executed where.
+## What can I run?
 
-## Quick start
+| Your computer | Windows programs | Linux programs | macOS programs |
+| --- | --- | --- | --- |
+| Linux | Wine/Proton for compatible applications; a small Wine fixture was tested | Native when CPU and dependencies match | Unsupported |
+| Windows 11 | Native; publisher requirements still apply | WSL; a Linux ELF launch was tested | Unsupported |
+| macOS, Intel or Apple Silicon | CrossOver/Wine integration, experimental and untested on a physical Mac | Lima Linux VM integration, experimental and untested | Native; Intel apps on Apple Silicon may need Rosetta |
 
-Everything is pinned by the Nix flake. On Linux with Nix (flakes enabled):
+CPU compatibility is a separate requirement. ARM64 is not automatically able to
+run every x86 program. FEX/Box64 discovery and translation plans are experimental.
+VM support starts an existing libvirt guest; you still open the application
+inside it. Cloud services are recommendations, not integrated streaming.
+See the [support matrix](docs/COMPATIBILITY.md) and [test record](docs/VALIDATION.md).
 
-```bash
-nix develop
+**Fortnite is not available on Linux yet. Apex is blocked on Linux.** No
+protected multiplayer game has been verified playable by this project.
+
+## Install MICA
+
+There is **no published MICA release yet**. The scripts try a release download
+with SHA-256 verification, then build from source when no release exists.
+Source builds need **Rust 1.99 or newer**, a linker, Git, and internet access;
+the scripts use Rust **1.99.1** when rustup is installed. Installing MICA does
+not install Wine, Steam, Windows, or games.
+
+These instructions explicitly select `overhaul/mica-universal-compatibility`
+because this update is not on `main`. Keep the checkout for updating and
+uninstalling. Commands using example application paths need your own files.
+
+**Validation labels:** Windows and WSL launch/install smoke tests are recorded
+in [VALIDATION](docs/VALIDATION.md). Fresh-machine prerequisite installation,
+macOS use, and Linux desktop gaming are **untested** unless explicitly recorded
+there. A CI test of a container is not a test of its desktop or firmware.
+
+### Windows 11 — PowerShell
+
+Install [Rust](https://rustup.rs), [Git](https://git-scm.com/downloads/win), and
+Visual Studio Build Tools with **Desktop development with C++** and a Windows
+SDK. Restart PowerShell after installation. The following uses the tested
+PowerShell installer; the full fresh-machine prerequisite sequence is untested.
+
+```powershell
+git clone --branch overhaul/mica-universal-compatibility https://github.com/SwashX-dev/MICA-Multi-platform-Interoperability-Compatibility-Applicator-.git MICA
+cd MICA
+$env:MICA_BRANCH = 'overhaul/mica-universal-compatibility'
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
 
-Then, inside the shell:
+Open a new terminal, then:
 
-```bash
-just test
+```powershell
+mica --version
+mica doctor
 ```
 
-```bash
-just play
-```
+The installer places `mica.exe` in `%LOCALAPPDATA%\Programs\MICA` and adds it to
+your user PATH. The process-local execution-policy option above allows the
+downloaded script to run; review `scripts/install.ps1` first.
 
-Without entering the shell, `nix run .` plays the game and `nix flake check`
-builds and tests everything, including the ARM64 host under QEMU and the
-Windows host and its installer under Wine. Run `just` to list every command.
+### Linux — APT, DNF, pacman, or Zypper
 
-### Keys
+Install build prerequisites using **one** row for your distribution. These
+fresh-machine package-install commands are **untested** here; repositories and
+package availability depend on your distribution version.
 
-The window's status bar always shows the current mode and every key active in
-it.
-
-| Mode | Keys |
+| Distribution family | Command |
 | --- | --- |
-| NORMAL | Arrows or WASD move · `P` pause · `Q` quit |
-| PAUSED | `N` steps one tick (with any movement keys held) · `P` or `Esc` resume · `Q` quit |
-| ENDED (scripted sessions) | `Q` quit |
+| Debian, Ubuntu, Kali (APT) | `sudo apt-get update && sudo apt-get install -y build-essential git curl ca-certificates` |
+| Fedora (DNF) | `sudo dnf install -y gcc git curl ca-certificates` |
+| Arch (pacman) | `sudo pacman -Syu --needed base-devel git curl ca-certificates` |
+| openSUSE (Zypper) | `sudo zypper install gcc git curl ca-certificates` |
 
-## Commands
+Install Rust using the instructions at [rustup.rs](https://rustup.rs). Then:
 
-| Command | What it does |
-| --- | --- |
-| `just guest` | Build the application component into `target/component/moving-square.wasm`, independently of any host |
-| `just test` | Guest game logic, host unit tests, golden replays, and diagnostics tests |
-| `just play` | Play in a window; extra arguments go to `portable-host play` (see below) |
-| `just replay [SCRIPT]` | Replay a script headlessly and compare it with its golden trace |
-| `just inspect` | Show the component's hash, imports (granted or refused), exports, and declared info |
-| `just test-keyboard` | Drive the window with real X key events on a private virtual X server |
-| `just test-arm64` | Cross-compile the headless host for ARM64 and run its whole test suite under QEMU |
-| `just bless` | Rewrite the golden traces after an intentional behaviour change |
-
-`portable-host` itself:
-
-```text
-portable-host play COMPONENT [--record FILE] [--script FILE [--exit-at-end]] [--screenshot PNG] [--scale N]
-portable-host replay COMPONENT SCRIPT [--trace FILE] [--expect GOLDEN]
-portable-host inspect COMPONENT
+```sh
+git clone --branch overhaul/mica-universal-compatibility https://github.com/SwashX-dev/MICA-Multi-platform-Interoperability-Compatibility-Applicator-.git MICA
+cd MICA
+MICA_BRANCH=overhaul/mica-universal-compatibility sh scripts/install.sh
+export PATH="$HOME/.local/bin:$PATH"
+mica --version
+mica doctor
 ```
 
-`play` and `replay` also take `--fuel UNITS` (per call) and `--max-memory MIB`.
+The installer uses `~/.local/bin`. Add that directory to your shell's PATH
+configuration to keep it available in new terminals. For Bash, add
+`export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc`.
 
-Nix outputs:
+There is no MICA APT/DNF/pacman/Zypper repository to add. Native package recipes
+are in `packaging/`, and CI builds `.deb` and `.rpm` files; these are not yet
+published releases. On immutable systems, use the distribution's supported
+configuration mechanism; `mica setup` prints guidance instead of modifying
+the OS image.
 
-| Output | Contents |
-| --- | --- |
-| `packages.<system>.guest` | The component, built reproducibly: `result/moving-square.wasm` |
-| `packages.<system>.host` | The native host with the SDL3 backend; its build runs the full test suite |
-| `packages.x86_64-linux.host-aarch64` | The headless host cross-compiled for ARM64 |
-| `packages.x86_64-linux.host-windows` | The Windows x86-64 host with the SDL3 backend, cross-compiled with MinGW-w64: `result/bin/portable-host.exe` and `SDL3.dll` |
-| `packages.x86_64-linux.msi` | The Windows installer, `result/portable-host-0.1.0-x64.msi` (unsigned) |
-| `packages.x86_64-linux.cross-arch-report` | The Linux x86-64, Linux ARM64 (QEMU), and Windows (Wine) hosts replay every script; traces must be byte-identical (`result/report.md`) |
-| `packages.x86_64-linux.windows-play-report` | The Linux and Windows (Wine) hosts play the tour script in a window; both must end on its golden frame and draw identical pixels (`result/report.md`, screenshots) |
-| `packages.x86_64-linux.msi-install-report` | Installs the MSI under Wine, replays with the installed files, opens the Start-menu shortcut, and uninstalls (`result/report.md`) |
-| `checks.<system>.*` | The above plus guest logic tests, clippy, the keyboard test (on Linux, and on Windows under Wine), the ARM64 test suite under QEMU, and the Windows test suite under Wine |
+### macOS — Intel and Apple Silicon (untested on a physical Mac)
 
-## Windows
+Install Apple's command-line developer tools with `xcode-select --install`,
+then install Rust from [rustup.rs](https://rustup.rs). Use the same Git clone
+and `sh scripts/install.sh` block above. Add `~/.local/bin` to `~/.zshrc` for
+the default macOS shell. A source build targets your Mac's architecture;
+the release workflow is intended to produce a universal binary.
 
-`nix build .#msi` builds an installer for 64-bit Windows 10 and 11,
-`result/portable-host-0.1.0-x64.msi`. It installs `portable-host.exe`, the
-`SDL3.dll` it loads, and the moving-square component into
-`C:\Program Files\Portable Host`, and adds **Portable Host › Moving Square** to
-the Start menu, which opens the game in a window. Double-click the `.msi` to
-install it, or run, from an administrator command prompt:
+### Nix — Linux and macOS
 
-```text
-msiexec /i portable-host-0.1.0-x64.msi
+With Nix and flakes enabled, from the checkout:
+
+```sh
+nix run .#mica -- doctor
+nix profile add .#mica
 ```
 
-The installer is **not signed**. Downloaded from the internet, it is likely to
-be stopped by SmartScreen with "Windows protected your PC": choose *More
-info*, then *Run anyway*. The administrator prompt that follows names an
-unknown publisher. Uninstall from *Settings › Apps* or with `msiexec /x`.
-Installing a newer version replaces the older one.
+These new Nix outputs require validation; see the current status in
+[VALIDATION](docs/VALIDATION.md). `nix run .` still starts the original
+Portable Host demo on Linux. Use **`.#mica`** for the new command.
 
-The Start-menu shortcut also opens a console window, which shows what the
-host prints and closes with the game. From a command prompt, the installed host
-takes the same commands as on Linux:
+### Update
 
-```text
-"C:\Program Files\Portable Host\portable-host.exe" inspect "C:\Program Files\Portable Host\moving-square.wasm"
+From a clean checkout on the overhaul branch:
+
+```sh
+git pull --ff-only
 ```
 
-`nix build .#host-windows` gives the same two files without an installer, to
-copy anywhere; `portable-host.exe` looks for `SDL3.dll` beside it. Apart from
-each other, the two need only DLLs that ship with Windows. Both are
-cross-compiled on Linux and have so far run only under Wine 11 on Linux, not
-on Windows itself.
+Then rerun your install command with `MICA_FROM_SOURCE=1` (PowerShell:
+`$env:MICA_FROM_SOURCE = '1'`) and the same `MICA_BRANCH`. Source updates are
+development snapshots, not stable releases. For a Nix profile, use
+`nix profile list` to find its name and `nix profile upgrade NAME`.
 
-## Layout
+## Run applications
 
-```text
-wit/platform.wit            the contract: portable:platform@0.1.0
-examples/moving-square/     the application (Rust → wasm32 → component)
-  src/game.rs               state and simulation; unit-tested natively
-  src/lib.rs                contract bindings and the panic reporter
-crates/host/                portable-host
-  src/runtime.rs            Wasmtime engine, granted imports, limits, diagnostics
-  src/headless.rs           script in, trace out
-  src/sdl.rs                window, keyboard, renderer, status bar
-  src/pacer.rs              real time → fixed ticks
-  src/script.rs             input scripts and recording
-  src/trace.rs              text traces and fingerprints
-  tests/                    golden replays, determinism, diagnostics
-tests/replay/               input scripts and their golden traces
-tests/keyboard.nu           end-to-end keyboard test (Xvfb + xdotool)
-tests/cross-arch.nu         compares hosts on every script
-tests/play-compare.nu       compares hosts' windows, pixel for pixel
-tests/wine-msi.nu           installs, uses, and removes the MSI under Wine
-packaging/windows/          the MSI definition (WiX, built by wixl)
-docs/ARCHITECTURE.md        boundaries, contract design, tradeoffs
-docs/VALIDATION.md          what was executed, on what, with which results
+### Linux: Windows programs
+
+First preview the packages MICA recommends, then approve installation:
+
+```sh
+mica setup windows --dry-run
+mica setup windows
+mica runtimes
+mica plan "/path/to/application.exe"
+mica run "/path/to/application.exe" -- argument1 "argument with spaces"
 ```
 
-## Scripts and traces
+An installer can create its own application in a Wine prefix (a private
+directory holding that application's Windows files):
 
-A script lists which buttons are held from which tick on:
-
-```text
-ticks 300          # length of the run
-0 right            # from tick 0, hold right
-90 down            # from tick 90, hold down
-250 -              # from tick 250, hold nothing
+```sh
+mica install "/path/to/setup.exe" --name "My App"
+mica apps
+mica run "My App"
 ```
 
-A trace has one line per tick, giving the input and the frame rendered after
-it:
+Registration depends on the installer's shortcuts; check `mica apps` before
+running by name. `.msi` is also recognized. The run → install → named run
+sequence passed with the repository's fixture under Wine in WSL Kali; it is
+not a promise for arbitrary installers. Graphics runtimes and drivers still
+matter: `mica setup vulkan --dry-run` shows recommendations.
 
-```text
-0 right | clear #14161c; fill 154,82 16x16 #f2c14e
+For a native Linux executable use `mica run "/path/to/linux-program"`.
+There is no supported command to run a macOS `.app` on Linux.
+
+### Windows 11: Linux programs
+
+```powershell
+mica setup linux --dry-run
 ```
 
-`play --record FILE` saves what you played as a script, and every `play`
-session replays its own input headlessly on exit and checks that both runs end
-on the same frame.
+If WSL is missing, follow the displayed instructions (`wsl --install` in an
+administrator terminal, then restart and finish the distro setup). With a
+Linux ELF executable stored on your Windows drive:
 
-## Writing another application
+```powershell
+mica inspect "C:\path\to\linux-program"
+mica plan "C:\path\to\linux-program"
+mica run "C:\path\to\linux-program" -- argument1
+```
 
-Target the `application` world in `wit/platform.wit`: export `info`, `update`,
-and `render`; import nothing but `log`. With Rust, copy
-`examples/moving-square`, build it for `wasm32-unknown-unknown`, and wrap the
-result with `wasm-tools component new`, as `just guest` does. Any language
-whose toolchain produces components works the same way. The host refuses a
-component that imports anything else, such as WASI, and `portable-host inspect`
-shows why.
+MICA uses your **default WSL distribution** and its installed libraries.
+This path has been smoke-tested with an ELF, not a Linux game or graphical
+desktop. Use absolute Windows drive paths; nondefault WSL mounts and
+cross-distro UNC paths are not validated. macOS `.app` files are unsupported.
 
-## Status
+### macOS: Windows and Linux programs (experimental, untested)
 
-See [docs/VALIDATION.md](docs/VALIDATION.md) for exactly what was built and
-run, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design and its
-known limits. In short: the contract, the component, both backends, the
-headless replays, the ARM64 host, the Windows host, and its installer all
-work. ARM64 has been exercised only under QEMU, and the ARM64 host has no
-graphical backend yet. Windows has been exercised only under Wine on Linux,
-and the installer is unsigned.
+Install [CrossOver](https://www.codeweavers.com/crossover) separately and create
+a bottle called `MICA` in its interface. On Apple Silicon, install Rosetta when
+macOS requests it. Then:
 
-### Working with JJ
+```sh
+mica config set windows.runtime crossover
+mica config set windows.bottle MICA
+mica runtimes
+mica plan "$HOME/Downloads/application.exe"
+mica run "$HOME/Downloads/application.exe"
+```
 
-Nix flakes built from a Git checkout see only files Git tracks. In a JJ working
-copy, new files reach Git once their change is committed (`jj new`, or
-`jj squash` into a described change), after which `nix build .#…` sees them.
-Avoid `path:.` here: it copies the whole directory, `target/` included.
+For Linux programs, install and configure [Lima](https://lima-vm.io/docs/),
+including a running instance named `default`. `mica setup linux --dry-run`
+shows installation guidance. Put the ELF in a directory shared at the same
+absolute path inside that VM, with the correct CPU architecture and libraries:
 
-## License
+```sh
+mica plan "$HOME/Downloads/linux-program"
+mica run "$HOME/Downloads/linux-program"
+```
 
-BSD 3-Clause; see [LICENSE](LICENSE).
+This runs inside Linux in a VM. It is not native Linux execution on macOS.
+Native Mac apps use `mica run "/Applications/Example.app"`.
+
+## Steam and desktop integration
+
+On Linux, install Steam and the Proton version you want through Steam first.
+These integrations have unit coverage; interactive Steam gameplay is untested.
+
+```sh
+mica steam status
+mica games
+mica compatibility fortnite
+mica compatibility apex
+```
+
+In Steam → game Properties → General → Launch Options, enter:
+
+```text
+mica steam launch -- %command%
+```
+
+Steam must be able to find `mica` on PATH; otherwise use its absolute installed
+path. MICA checks policy before forwarding Steam's command chain. It does not
+change your Steam settings automatically.
+
+Alternatively, `mica steam install-tool` adds an opt-in MICA compatibility
+tool. Restart Steam and choose it per game under Compatibility. Remove it with
+`mica steam remove-tool`, then restart Steam. MICA still needs an installed
+Proton runtime. Do not combine both approaches without a reason.
+
+On Linux, `mica desktop install` adds **Open with MICA**; `mica desktop remove`
+removes it. Adding `--default` records and changes file associations. Desktop
+behavior is untested outside unit fixtures. Disable library scanning with
+`mica config set detect_games false`; restore it with `true`.
+
+## Games with anti-cheat
+
+Read the [beginner anti-cheat guide](docs/ANTI-CHEAT.md) before changing security
+settings. Start with read-only commands:
+
+```sh
+mica compatibility fortnite
+mica security check --game fortnite
+mica security boot-profile
+```
+
+Fortnite's announced Linux path depends on Epic's EAC Linux v2 rollout; a ready
+computer does not make the game available. Apex uses EA Javelin and EA blocks
+Linux. EAC/BattlEye support under Proton is per game. Windows kernel anti-cheat
+cannot run through Wine/CrossOver on macOS. MICA never chooses a VM automatically
+for protected multiplayer or overrides an official prohibition. Dual boot into
+a supported Windows installation or an officially supported cloud service may
+be legitimate alternatives; see the guide for title-specific limits and sources.
+
+## Troubleshooting
+
+```sh
+mica doctor
+mica runtimes
+mica config path
+mica config show
+mica plan "/path/to/program"
+mica run "/path/to/program" --dry-run
+```
+
+`mica config path` prints the settings, data, and state locations, including
+logs. Launch logs are under the printed state directory's `logs/` folder.
+If a runtime is missing, preview `mica setup windows --dry-run`. If a program
+fails, check its log and CPU/library requirements. A policy block is not fixed
+by changing runtime or turning off security. Logs can contain file paths and
+application output; redact private information before sharing them.
+
+`mica bench --iterations 100` measures MICA operations, not game FPS. It does
+not establish a performance advantage over Wine, Proton, or CrossOver.
+
+## How it works
+
+Inspection → host/runtime discovery → publisher-policy check → backend choice
+→ launch plan → execution and local logs. The Rust crates separate binary
+inspection, system probes, security readiness, compatibility evidence, runtime
+integration, decisions, and the CLI. [Architecture](docs/ARCHITECTURE.md) explains
+the boundaries; [research](docs/RESEARCH.md) explains the reused technologies.
+Arbitrary EXEs are never treated as WebAssembly components.
+
+## Uninstall
+
+Run `mica uninstall` to review removal of MICA's integrations and data. Prefixes
+can contain installed applications and saves; back up anything you want to keep.
+If you created a Gaming Boot Profile, remove it **before removing the binary**
+with `sudo mica security boot-profile --rollback` on that Linux system.
+
+For a script installation, from the saved checkout:
+
+```sh
+sh scripts/uninstall.sh
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
+```
+
+Use the same `MICA_INSTALL_DIR` if you customized it. For a Nix installation,
+use `nix profile list` and `nix profile remove NAME`; for a Cargo installation,
+use `cargo uninstall mica-cli`. Package installations should be removed with
+their package manager. MICA does not remove Wine, Steam, or other independently
+installed runtimes. See [security and privacy](docs/SECURITY.md).
+
+## Portable Host and developers
+
+On Linux with Nix: `nix develop`, then `just test` and `just play`.
+[The complete original guide](docs/PORTABLE-HOST.md) retains every Portable Host
+workflow. `cargo build --locked -p mica-cli` builds only the new command;
+plain `cargo build` still defaults to Portable Host.
+
+BSD 3-Clause; see [LICENSE](LICENSE). Third-party runtimes retain their own licenses.

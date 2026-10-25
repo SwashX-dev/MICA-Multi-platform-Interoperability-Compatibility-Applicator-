@@ -1,0 +1,53 @@
+# Arch Linux package for the `mica` command, built from a release tag.
+#
+#     cd packaging/arch && makepkg -si
+#
+# Builds with the distribution's Rust (1.99 or newer); Arch's own wine,
+# umu-launcher, steam, qemu, and libvirt packages are optional runtimes that
+# `mica doctor` detects.
+
+pkgname=mica
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Run Windows, Linux, and macOS programs on other systems through the right compatibility backend"
+arch=('x86_64' 'aarch64')
+url="https://github.com/SwashX-dev/MICA-Multi-platform-Interoperability-Compatibility-Applicator-"
+license=('BSD-3-Clause')
+depends=('gcc-libs' 'glibc')
+makedepends=('cargo' 'git')
+optdepends=(
+    'wine: run Windows programs'
+    'umu-launcher: run Windows games with Proton outside Steam'
+    'steam: Proton, and Valve anti-cheat runtimes'
+    'qemu-full: Windows virtual machines'
+    'libvirt: manage Windows virtual machines'
+    'tpm2-tools: inspect the TPM for `mica security check`'
+)
+source=("$pkgname::git+$url.git#tag=v$pkgver")
+sha256sums=('SKIP')
+
+prepare() {
+    cd "$pkgname"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "$pkgname"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo build --frozen --release -p mica-cli
+}
+
+check() {
+    cd "$pkgname"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo test --frozen --release -p mica-inspect -p mica-security -p mica-compat -p mica-engine
+}
+
+package() {
+    cd "$pkgname"
+    install -Dm755 target/release/mica "$pkgdir/usr/bin/mica"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 docs/ANTI-CHEAT.md "$pkgdir/usr/share/doc/$pkgname/ANTI-CHEAT.md"
+}

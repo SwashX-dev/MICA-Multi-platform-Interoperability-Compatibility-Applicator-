@@ -143,3 +143,43 @@ host may or may not grant, so that an application's imports keep stating its
 whole authority: deterministic randomness (a seeded source owned by the host),
 pointer and text input, image resources owned by the host, audio, and storage,
 which would bring suspend and resume.
+
+## MICA compatibility engine (0.1.0)
+
+The `mica` command adds an independent execution coordinator. It does not change
+`crates/host`, `examples/moving-square`, the WIT contract, or the default Cargo
+workspace member. A native executable is never fed into Wasmtime as a component.
+
+| Crate | Responsibility |
+| --- | --- |
+| `mica-inspect` | Bounded PE/ELF/Mach-O/Wasm/installer/shortcut inspection, app bundles, nearby anti-cheat signals |
+| `mica-probe` | Host OS/CPU/GPU/runtime prerequisites and Linux security facts through a testable context/sysroot |
+| `mica-security` | EAC readiness findings, EFI/X.509/TPM metadata parsers, recognized key list, reversible boot-entry plans |
+| `mica-compat` | Versioned TOML policy and per-game evidence; reject unsupported verified-playable claims |
+| `mica-runtime` | Runtime discovery, Steam VDF/libraries/tools, Epic/Heroic manifests, launch arguments, config, package/desktop plans |
+| `mica-engine` | Policy-gated candidates, ranking, rejection reasons and launch preparation |
+| `mica-cli` | User commands, dry runs, confirmation, application registry and diagnostics |
+
+The CLI inspects the target and combines it with host facts and installed
+runtimes. The engine first applies publisher policy, then chooses an eligible
+backend and prepares an argument-vector launch plan. Missing runtimes produce
+setup guidance. Official prohibitions survive local overrides. A VM is never
+chosen automatically for protected multiplayer; explicit VM use also needs
+permission and cannot override a prohibition. Cloud options are informational.
+
+Wine/Proton prefixes provide separate state, not an application security
+sandbox. WSL uses the default distro. Lima assumes a configured `default`
+instance and shared paths. libvirt starts an existing domain; application
+execution inside it is manual. No seamless-window, passthrough, streaming or
+credential-management subsystem is implemented.
+
+Security probes report unknown values honestly. Certificate subjects and TPM
+log parsing are not cryptographic attestation. Readiness never grants publisher
+permission or marks a game playable. The boot planner may write only a separate
+marked BLS entry after confirmation; other loader types receive manual guidance.
+Firmware, trust stores, original boot entries and defaults are not changed.
+
+Local config, app records, prefixes, logs and undo data have platform-specific
+locations exposed by `mica config path`; `MICA_HOME` redirects them for tests.
+No telemetry client is implemented. See [SECURITY](SECURITY.md),
+[COMPATIBILITY](COMPATIBILITY.md), and [RESEARCH](RESEARCH.md) for boundaries.

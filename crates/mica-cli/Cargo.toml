@@ -1,0 +1,46 @@
+[package]
+name = "mica-cli"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "mica: run Windows, Linux, and macOS programs on other operating systems through the right compatibility backend"
+
+[[bin]]
+name = "mica"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+mica-compat.workspace = true
+mica-engine.workspace = true
+mica-inspect.workspace = true
+mica-probe.workspace = true
+mica-runtime.workspace = true
+mica-security.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# `cargo deb` builds a Debian package from the release binary.
+[package.metadata.deb]
+name = "mica"
+maintainer = "MICA contributors"
+copyright = "MICA contributors, BSD-3-Clause"
+extended-description = "MICA detects what a program needs and runs it through the right backend: natively, Proton or Wine for Windows programs on Linux, WSL on Windows, CrossOver on macOS. It checks platform security for publisher-authorized Linux anti-cheat (Easy Anti-Cheat Linux v2) and never bypasses anti-cheat."
+section = "games"
+priority = "optional"
+assets = [
+    ["target/release/mica", "usr/bin/", "755"],
+    ["../../README.md", "usr/share/doc/mica/README.md", "644"],
+]
+
+# `cargo generate-rpm` builds an RPM package from the release binary.
+[package.metadata.generate-rpm]
+name = "mica"
+assets = [
+    { source = "target/release/mica", dest = "/usr/bin/mica", mode = "755" },
+    { source = "../../README.md", dest = "/usr/share/doc/mica/README.md", mode = "644", doc = true },
+]
