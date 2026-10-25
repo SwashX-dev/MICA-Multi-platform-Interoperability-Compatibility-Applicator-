@@ -706,6 +706,18 @@ dependencies = [
 [[package]]
 name = "mica-cli"
 version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "mica-compat",
+ "mica-engine",
+ "mica-inspect",
+ "mica-probe",
+ "mica-runtime",
+ "mica-security",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "mica-compat"

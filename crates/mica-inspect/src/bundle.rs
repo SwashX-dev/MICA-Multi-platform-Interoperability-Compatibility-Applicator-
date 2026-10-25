@@ -2,10 +2,10 @@
 
 use std::path::Path;
 
-use crate::{BundleDetails, Format, InspectError, Report};
+use crate::{BundleDetails, Format, InspectError, Options, Report};
 
 /// Inspect `path` as an application bundle; `None` if it is not one.
-pub(crate) fn inspect_bundle(path: &Path) -> Result<Option<Report>, InspectError> {
+pub(crate) fn inspect_bundle(path: &Path, options: Options) -> Result<Option<Report>, InspectError> {
     let contents = path.join("Contents");
     let macos = contents.join("MacOS");
     if !macos.is_dir() {
@@ -21,7 +21,7 @@ pub(crate) fn inspect_bundle(path: &Path) -> Result<Option<Report>, InspectError
         },
     };
     let inner_path = macos.join(&executable);
-    let mut report = crate::inspect_path(&inner_path)?;
+    let mut report = crate::inspect_path_with(&inner_path, options)?;
     if plist.starts_with(b"bplist00") && identifier.is_none() {
         report.notes.push(
             "Info.plist is a binary property list; MICA read the executable name from \

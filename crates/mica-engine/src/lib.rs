@@ -11,7 +11,7 @@ pub mod decide;
 pub mod policy;
 pub mod prepare;
 
-pub use decide::{Backend, Blocker, BlockerKind, Candidate, Decision, Inputs, Runner, Target, analyze, decide};
+pub use decide::{Backend, Blocker, BlockerKind, Candidate, Decision, Inputs, Runner, Target, analyze, analyze_with, decide};
 pub use prepare::prepare;
 
 #[cfg(test)]

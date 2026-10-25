@@ -236,7 +236,17 @@ pub struct Inputs<'a> {
 /// Inspect a file, look for anti-cheat beside it, and match it to the
 /// compatibility database.
 pub fn analyze(path: &Path, database: &Database) -> Result<Target, mica_inspect::InspectError> {
-    let report = mica_inspect::inspect_path(path)?;
+    analyze_with(path, database, mica_inspect::Options::QUICK)
+}
+
+/// [`analyze`] with a chosen inspection depth (`mica inspect` reads more and
+/// hashes the file).
+pub fn analyze_with(
+    path: &Path,
+    database: &Database,
+    options: mica_inspect::Options,
+) -> Result<Target, mica_inspect::InspectError> {
+    let report = mica_inspect::inspect_path_with(path, options)?;
     let scan = if report.platform == Platform::Windows && report.kind == Kind::Application {
         scan_game_dirs(path)
     } else {

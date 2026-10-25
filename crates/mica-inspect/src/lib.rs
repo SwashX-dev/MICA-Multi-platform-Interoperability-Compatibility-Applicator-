@@ -16,6 +16,7 @@ pub mod anticheat;
 mod bundle;
 mod bytes;
 mod elf;
+pub mod lnk;
 mod macho;
 mod pe;
 
@@ -34,6 +35,29 @@ pub use anticheat::{AntiCheat, AntiCheatScan, AntiCheatSignal, Confidence};
 /// huge game binary is still identified; strings referenced only beyond this
 /// point are not seen.
 pub const MAX_READ: u64 = 256 << 20;
+
+/// How thoroughly to inspect.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Options {
+    /// Read at most this many bytes.
+    pub max_read: u64,
+    /// Compute the SHA-256 of what was read.
+    pub hash: bool,
+}
+
+impl Options {
+    /// Everything `mica inspect` shows.
+    pub const FULL: Options = Options {
+        max_read: MAX_READ,
+        hash: true,
+    };
+    /// Enough to choose a backend, fast enough to run before every launch:
+    /// headers and import tables are in the first megabytes of a program.
+    pub const QUICK: Options = Options {
+        max_read: 32 << 20,
+        hash: false,
+    };
+}
 
 /// The operating system a file was built for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
@@ -299,8 +323,9 @@ pub struct BundleDetails {
 pub struct Report {
     pub path: String,
     pub size: u64,
-    pub sha256: String,
-    /// Whether only the first [`MAX_READ`] bytes were read.
+    /// SHA-256 of the bytes read (`None` in [`Options::QUICK`] inspections).
+    pub sha256: Option<String>,
+    /// Whether only part of the file was read.
     pub truncated: bool,
     pub format: Format,
     pub platform: Platform,
@@ -350,11 +375,16 @@ impl From<std::io::Error> for InspectError {
     }
 }
 
-/// Inspect a file, or a macOS `.app` bundle directory.
+/// Inspect a file, or a macOS `.app` bundle directory, thoroughly.
 pub fn inspect_path(path: &Path) -> Result<Report, InspectError> {
+    inspect_path_with(path, Options::FULL)
+}
+
+/// Inspect a file or bundle with the given thoroughness.
+pub fn inspect_path_with(path: &Path, options: Options) -> Result<Report, InspectError> {
     let metadata = std::fs::metadata(path)?;
     if metadata.is_dir() {
-        return match bundle::inspect_bundle(path)? {
+        return match bundle::inspect_bundle(path, options)? {
             Some(report) => Ok(report),
             None => Err(InspectError::NotAFile(path.display().to_string())),
         };
@@ -364,20 +394,24 @@ pub fn inspect_path(path: &Path) -> Result<Report, InspectError> {
     }
     let mut data = Vec::new();
     std::fs::File::open(path)?
-        .take(MAX_READ)
+        .take(options.max_read)
         .read_to_end(&mut data)?;
     let name = path
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
     let mut report = inspect_bytes(&name, &data);
+    if !options.hash {
+        report.sha256 = None;
+    }
     report.path = path.display().to_string();
     report.size = metadata.len();
-    report.truncated = metadata.len() > MAX_READ;
+    report.truncated = metadata.len() > options.max_read;
     if report.truncated {
         report.notes.push(format!(
-            "only the first {} MiB were inspected; the sha256 covers only those bytes",
-            MAX_READ >> 20
+            "only the first {} MiB were inspected{}",
+            options.max_read >> 20,
+            if options.hash { "; the sha256 covers only those bytes" } else { "" }
         ));
     }
     Ok(report)
@@ -389,7 +423,7 @@ pub fn inspect_bytes(name: &str, data: &[u8]) -> Report {
     let mut report = Report {
         path: name.to_string(),
         size: data.len() as u64,
-        sha256: sha256_hex(data),
+        sha256: Some(sha256_hex(data)),
         truncated: false,
         format: Format::Unknown,
         platform: Platform::Unknown,

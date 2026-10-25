@@ -3,7 +3,7 @@
 
 use serde::Deserialize;
 
-use crate::{Context, Gpu, GpuVendor, HostProfile, Init};
+use crate::{Context, Depth, Gpu, GpuVendor, HostProfile, Init};
 
 /// Gathers everything in one PowerShell start-up (about a second), as JSON.
 const QUERY: &str = r#"
@@ -53,8 +53,12 @@ struct GpuFact {
     pnp: Option<String>,
 }
 
-pub(crate) fn probe(context: &Context, profile: &mut HostProfile) {
+pub(crate) fn probe(context: &Context, profile: &mut HostProfile, depth: Depth) {
     profile.init = Init::NotApplicable;
+    if depth == Depth::Light {
+        light(context, profile);
+        return;
+    }
     let output = context.run(
         "powershell",
         &["-NoProfile", "-NonInteractive", "-Command", QUERY],
@@ -66,6 +70,17 @@ pub(crate) fn probe(context: &Context, profile: &mut HostProfile) {
         return;
     };
     apply(&facts, context, profile);
+}
+
+/// Facts available without PowerShell: environment and files.
+fn light(context: &Context, profile: &mut HostProfile) {
+    profile.os_name = "Windows".into();
+    let system_root = context.env("SystemRoot").unwrap_or(r"C:\Windows");
+    profile.vulkan.loader = std::path::Path::new(system_root)
+        .join(r"System32\vulkan-1.dll")
+        .is_file();
+    let identifier = context.env("PROCESSOR_IDENTIFIER").unwrap_or_default();
+    profile.translated = cfg!(target_arch = "x86_64") && identifier.contains("ARM");
 }
 
 fn apply(facts: &Facts, context: &Context, profile: &mut HostProfile) {

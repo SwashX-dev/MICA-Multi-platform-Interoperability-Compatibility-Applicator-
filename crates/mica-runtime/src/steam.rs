@@ -83,6 +83,17 @@ pub fn candidate_roots(home: &Path, os: &str) -> Vec<(PathBuf, bool)> {
     }
 }
 
+/// `canonicalize`, without Windows' `\\?\` verbatim prefix when the path is
+/// an ordinary drive path, so paths print and compare the way users see them.
+pub fn canonical(path: &Path) -> PathBuf {
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let text = canonical.to_string_lossy();
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => PathBuf::from(rest),
+        _ => canonical,
+    }
+}
+
 /// Every distinct Steam installation among `candidates`.
 pub fn find(candidates: &[(PathBuf, bool)]) -> Vec<SteamInstall> {
     let mut found: Vec<SteamInstall> = Vec::new();
@@ -90,7 +101,7 @@ pub fn find(candidates: &[(PathBuf, bool)]) -> Vec<SteamInstall> {
         if !root.join("steamapps").is_dir() {
             continue;
         }
-        let canonical = root.canonicalize().unwrap_or_else(|_| root.clone());
+        let canonical = canonical(root);
         if found.iter().any(|install| install.root == canonical) {
             continue;
         }
@@ -119,8 +130,7 @@ pub fn libraries(root: &Path) -> Vec<PathBuf> {
                 .and_then(Value::text)
                 .or_else(|| folder.text().filter(|text| text.contains('/') || text.contains('\\')));
             if let Some(path) = path {
-                let path = PathBuf::from(path);
-                let canonical = path.canonicalize().unwrap_or(path);
+                let canonical = canonical(Path::new(path));
                 if !libraries.contains(&canonical) && canonical.join("steamapps").is_dir() {
                     libraries.push(canonical);
                 }

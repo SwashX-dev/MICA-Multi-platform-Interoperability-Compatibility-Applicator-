@@ -153,7 +153,11 @@ impl Builder {
             requirement,
             status,
             details,
-            fix: if status == Status::Met { None } else { fix },
+            fix: if matches!(status, Status::Met | Status::NotApplicable) {
+                None
+            } else {
+                fix
+            },
         });
     }
 }
@@ -256,7 +260,7 @@ pub fn eac_linux_v2(profile: &HostProfile, policy: Policy) -> Readiness {
     builder.push(
         "supported-device",
         "Supported device",
-        "Epic: the Steam Deck does not support the required features yet.",
+        "The Steam Deck does not support the required features yet.",
         if profile.device.steam_deck {
             Status::NotMet
         } else {

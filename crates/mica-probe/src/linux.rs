@@ -1,8 +1,8 @@
 //! Linux host facts.
 
-use crate::{Context, Gpu, GpuVendor, HostProfile, Init, os_release, security};
+use crate::{Context, Depth, Gpu, GpuVendor, HostProfile, Init, os_release, security};
 
-pub(crate) fn probe(context: &Context, profile: &mut HostProfile) {
+pub(crate) fn probe(context: &Context, profile: &mut HostProfile, depth: Depth) {
     let distro = context
         .read("/etc/os-release")
         .or_else(|| context.read("/usr/lib/os-release"))
@@ -41,15 +41,24 @@ pub(crate) fn probe(context: &Context, profile: &mut HostProfile) {
     profile.virtualization.kvm = context.exists("/dev/kvm");
     profile.virtualization.kvm_accessible =
         profile.virtualization.kvm && context.read_writable("/dev/kvm");
-    profile.virtualization.guest_of = guest_of(context, hypervisor_flag, profile.virtualization.wsl);
+    profile.virtualization.guest_of = if depth == Depth::Full {
+        guest_of(context, hypervisor_flag, profile.virtualization.wsl)
+    } else {
+        profile
+            .virtualization
+            .wsl
+            .then(|| "Windows Subsystem for Linux (a Hyper-V virtual machine)".to_string())
+    };
 
     profile.device = device(context);
     profile.gpus = gpus(context);
     profile.vulkan = vulkan(context);
     profile.init = init(context);
     profile.immutable = immutable(context, distro.as_ref());
-    profile.security = security::probe_linux(context);
-    profile.unknowns.extend(profile.security.needs_privilege.iter().cloned());
+    if depth == Depth::Full {
+        profile.security = security::probe_linux(context);
+        profile.unknowns.extend(profile.security.needs_privilege.iter().cloned());
+    }
     profile.distro = distro;
 }
 

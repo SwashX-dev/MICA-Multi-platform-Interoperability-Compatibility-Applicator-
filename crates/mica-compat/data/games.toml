@@ -28,7 +28,7 @@ aliases = ["fortnite battle royale"]
 publisher = "Epic Games"
 anticheat = ["easy-anti-cheat"]
 multiplayer = true
-executables = ["FortniteClient-Win64-Shipping.exe", "FortniteLauncher.exe"]
+executables = ["FortniteClient-Win64-Shipping.exe", "FortniteClient-Win64-Shipping_EAC_EOS.exe", "FortniteLauncher.exe", "FortniteBootstrapper.exe"]
 stores = { epic = "Fortnite" }
 eac_linux_v2 = "pilot"
 notes = [
@@ -45,7 +45,7 @@ evidence = [{ kind = "official", url = "https://www.epicgames.com/help/c-3425477
 [game.routes.linux-native]
 status = "blocked-by-publisher"
 authorization = "planned"
-summary = "Not available on Linux yet. Epic says Fortnite will come to Linux through the Epic Games Launcher once EAC Linux v2 works with a critical mass of distribution maintainers."
+summary = "Epic says Fortnite will come to Linux through the Epic Games Launcher once EAC Linux v2 works with a critical mass of distribution maintainers; no date has been announced."
 evidence = [
   { kind = "official", url = "https://www.epicgames.com/help/c-34254770/c-33726977/can-i-play-fortnite-on-linux-a22610900", date = "2026-10-25", summary = "\"No, Fortnite isn't available on Linux yet.\"" },
   { kind = "official", url = "https://store.epicgames.com/news/epic-games-launcher-preview", date = "2026-10-14", summary = "Fortnite is coming to Linux on the Launcher; no date." },

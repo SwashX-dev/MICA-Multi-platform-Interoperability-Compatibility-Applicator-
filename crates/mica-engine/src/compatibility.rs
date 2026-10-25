@@ -66,7 +66,7 @@ pub fn report(database: &Database, game: &Game, host: &HostProfile) -> GameRepor
             .find(|(_, result)| result.authorization == Authorization::Planned);
         match planned {
             Some((_, result)) => recommendation.push(format!(
-                "Not playable on {} today. {}",
+                "Not playable on {} today. Planned: {}",
                 host.os, result.summary
             )),
             None => recommendation.push(format!(

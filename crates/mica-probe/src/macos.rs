@@ -2,9 +2,9 @@
 
 use serde_json::Value;
 
-use crate::{Context, Gpu, GpuVendor, HostProfile, Init};
+use crate::{Context, Depth, Gpu, GpuVendor, HostProfile, Init};
 
-pub(crate) fn probe(context: &Context, profile: &mut HostProfile) {
+pub(crate) fn probe(context: &Context, profile: &mut HostProfile, depth: Depth) {
     profile.init = Init::NotApplicable;
     let name = context.run("sw_vers", &["-productName"]);
     let version = context.run("sw_vers", &["-productVersion"]);
@@ -26,6 +26,9 @@ pub(crate) fn probe(context: &Context, profile: &mut HostProfile) {
     profile.device.product = model.clone();
     if model.as_deref().is_some_and(|model| model.starts_with("VirtualMac")) {
         profile.virtualization.guest_of = Some("apple virtualization framework".into());
+    }
+    if depth == Depth::Light {
+        return;
     }
     profile.gpus = context
         .run("system_profiler", &["SPDisplaysDataType", "-json"])

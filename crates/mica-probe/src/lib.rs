@@ -220,6 +220,17 @@ impl HostProfile {
     }
 }
 
+/// How much to probe.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Depth {
+    /// Everything, including platform security and slow queries (about a
+    /// second on Windows, for PowerShell).
+    Full,
+    /// What choosing a backend needs: OS, distribution, CPU, GPUs, Vulkan,
+    /// virtualization. No security facts and no slow helper commands.
+    Light,
+}
+
 /// Probe the running system.
 pub fn probe() -> HostProfile {
     probe_with(&Context::live(), Os::current())
@@ -227,11 +238,15 @@ pub fn probe() -> HostProfile {
 
 /// Probe the system `context` describes, as an `os` host.
 pub fn probe_with(context: &Context, os: Os) -> HostProfile {
+    probe_depth(context, os, Depth::Full)
+}
+
+pub fn probe_depth(context: &Context, os: Os, depth: Depth) -> HostProfile {
     let mut profile = HostProfile::empty(os);
     match os {
-        Os::Linux => linux::probe(context, &mut profile),
-        Os::Windows => windows::probe(context, &mut profile),
-        Os::MacOs => macos::probe(context, &mut profile),
+        Os::Linux => linux::probe(context, &mut profile, depth),
+        Os::Windows => windows::probe(context, &mut profile, depth),
+        Os::MacOs => macos::probe(context, &mut profile, depth),
         Os::Other => profile
             .unknowns
             .push(format!("{} is not a platform MICA probes", std::env::consts::OS)),
