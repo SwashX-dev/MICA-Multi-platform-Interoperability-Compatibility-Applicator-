@@ -134,13 +134,16 @@ publisher = "Riot Games"
 anticheat = ["riot-vanguard"]
 multiplayer = true
 executables = ["VALORANT.exe", "VALORANT-Win64-Shipping.exe"]
-notes = ["Riot Vanguard is a Windows kernel driver that loads at boot."]
+notes = ["Riot Vanguard uses a Windows kernel driver; qualifying Windows configurations support on-demand loading. Windows 11 requires TPM 2.0 and Secure Boot."]
 
 [game.routes.windows-native]
 status = "unverified"
 authorization = "authorized"
 summary = "Windows only."
-evidence = []
+evidence = [
+  { kind = "official", url = "https://support.riotgames.com/en-us/valorant/support-tools/minimum-recommended-pc-specs", date = "2026-10-25", summary = "Windows requirements include TPM 2.0 and Secure Boot on Windows 11." },
+  { kind = "official", url = "https://www.riotgames.com/en/news/vanguard-on-demand", date = "2026-10-25", summary = "On-demand mode is available for qualifying Windows configurations." },
+]
 
 [game.routes.linux-proton]
 status = "blocked-by-anti-cheat"

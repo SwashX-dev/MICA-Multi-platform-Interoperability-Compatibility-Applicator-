@@ -21,6 +21,15 @@ $InstallDir = if ($env:MICA_INSTALL_DIR) { $env:MICA_INSTALL_DIR } else { Join-P
 
 function Say($Message) { Write-Host "mica-install: $Message" }
 
+function Fetch($Url, $Destination) {
+    $uri = [Uri]$Url
+    if ($uri.IsFile) {
+        Copy-Item -LiteralPath $uri.LocalPath -Destination $Destination
+    } else {
+        Invoke-WebRequest -UseBasicParsing -Uri $uri -OutFile $Destination
+    }
+}
+
 function Install-Binary($File) {
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
     Copy-Item -LiteralPath $File -Destination (Join-Path $InstallDir 'mica.exe') -Force
@@ -46,6 +55,7 @@ function From-Source {
     Say 'building MICA from source with Cargo'
     if (Get-Command rustup -ErrorAction SilentlyContinue) {
         rustup toolchain install 1.99.1 --profile minimal | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'could not install the pinned Rust toolchain' }
         $cargo = @('rustup', 'run', '1.99.1', 'cargo')
     } elseif (Get-Command cargo -ErrorAction SilentlyContinue) {
         $cargo = @('cargo')
@@ -54,7 +64,7 @@ function From-Source {
     }
     $root = Split-Path $InstallDir -Parent
     $branch = if ($env:MICA_BRANCH) { $env:MICA_BRANCH } else { 'main' }
-    $arguments = $cargo[1..($cargo.Count - 1)] + @('install', '--locked', '--git', "https://github.com/$Repo", '--branch', $branch, '--root', $root, 'mica-cli')
+    $arguments = @($cargo | Select-Object -Skip 1) + @('install', '--locked', '--git', "https://github.com/$Repo", '--branch', $branch, '--root', $root, 'mica-cli')
     & $cargo[0] @arguments
     if ($LASTEXITCODE -ne 0) { throw 'the source build failed (MICA needs Rust 1.99 or newer)' }
     Install-Binary (Join-Path $root 'bin\mica.exe')
@@ -94,8 +104,8 @@ $work = Join-Path ([IO.Path]::GetTempPath()) ("mica-install-" + [Guid]::NewGuid(
 New-Item -ItemType Directory -Path $work | Out-Null
 try {
     Say "downloading $asset $version"
-    Invoke-WebRequest -UseBasicParsing -Uri "$base/$asset" -OutFile (Join-Path $work $asset)
-    Invoke-WebRequest -UseBasicParsing -Uri "$base/SHA256SUMS" -OutFile (Join-Path $work 'SHA256SUMS')
+    Fetch "$base/$asset" (Join-Path $work $asset)
+    Fetch "$base/SHA256SUMS" (Join-Path $work 'SHA256SUMS')
     $line = Get-Content (Join-Path $work 'SHA256SUMS') | Where-Object { ($_ -split '\s+')[1] -in @($asset, "*$asset") } | Select-Object -First 1
     if (-not $line) { throw "SHA256SUMS does not list $asset; not installing an unverified file" }
     $expected = ($line -split '\s+')[0].ToLowerInvariant()

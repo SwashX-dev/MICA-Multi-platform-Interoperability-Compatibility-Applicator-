@@ -59,6 +59,17 @@ jobs:
           esac
           mkdir -p out
           run() { echo "\$ mica $*"; "$mica" "$@"; echo "(exit $?)"; echo; }
+          # A hosted VM is not expected to satisfy EAC's platform policy.
+          security_report() {
+            local code=0
+            "$mica" security check --json > out/security.json || code=$?
+            cat out/security.json
+            echo "(security exit $code)"
+            case "$code" in 0|1|3) ;; *) return "$code" ;; esac
+            # Still reject errors/panics masquerading as a readiness failure.
+            python -c 'import json; d=json.load(open("out/security.json")); assert "verdict" in d or "notes" in d'
+          }
+          trap 'cat out/report.md' EXIT
           {
             echo "## mica on $ImageOS $ImageVersion ($RUNNER_ARCH)"
             echo
@@ -68,7 +79,7 @@ jobs:
             run inspect "$system"
             run plan "$system"
             run runtimes
-            run security check
+            security_report
             run compatibility fortnite
             run compatibility apex
             run setup --dry-run
@@ -135,7 +146,7 @@ jobs:
         run: |
           bash .github/scripts/install-rust.sh --target x86_64-pc-windows-gnu
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends wine64 gcc-mingw-w64-x86-64 xvfb
+          sudo apt-get install -y --no-install-recommends wine wine64 gcc-mingw-w64-x86-64 xvfb xauth
       - name: Build mica and the test program
         run: |
           cargo build --locked --release -p mica-cli
@@ -144,6 +155,7 @@ jobs:
             tests/fixtures/mica-hello.rs -o fixture/mica-hello.exe
           cp fixture/mica-hello.exe fixture/mica-hello-setup.exe
       - name: Run, install, and run the installed program
+        shell: bash
         run: |
           export MICA_HOME="$RUNNER_TEMP/mica-home"
           mica=target/release/mica
@@ -294,6 +306,7 @@ jobs:
           mica --version
           dpkg -L mica
           sudo apt-get remove -y mica
+          hash -r
           ! command -v mica
       - name: Install, run, and remove the .rpm on Fedora
         run: |

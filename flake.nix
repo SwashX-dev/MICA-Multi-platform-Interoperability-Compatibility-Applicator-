@@ -3,6 +3,9 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # Unstable (26.11) removed Intel Darwin; keep only that platform on
+    # the last supported branch without changing Portable Host's inputs.
+    nixpkgs-intel-darwin.url = "github:NixOS/nixpkgs/nixpkgs-26.05-darwin";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -14,6 +17,7 @@
     {
       self,
       nixpkgs,
+      nixpkgs-intel-darwin,
       rust-overlay,
       crane,
     }:
@@ -420,7 +424,10 @@
           );
         };
       micaBuilds = lib.genAttrs micaSystems (
-        system: micaFor (import nixpkgs { inherit system overlays; })
+        system:
+        micaFor (import (if system == "x86_64-darwin" then nixpkgs-intel-darwin else nixpkgs) {
+          inherit system overlays;
+        })
       );
     in
     {

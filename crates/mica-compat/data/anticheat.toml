@@ -96,7 +96,7 @@ sources = []
 id = "riot-vanguard"
 name = "Riot Vanguard"
 vendor = "Riot Games"
-summary = "A kernel driver that starts with Windows. VALORANT and League of Legends require it."
+summary = "Windows kernel anti-cheat used by VALORANT and the Windows League of Legends client. Qualifying Windows configurations support Riot's on-demand mode; this does not provide Linux compatibility."
 
 [anticheat.routes.linux-proton]
 authorization = "forbidden"

@@ -2,4 +2,6 @@
 # Git must not convert their line endings on Windows checkouts.
 tests/replay/* text eol=lf
 *.sh text eol=lf
+*.ps1 text eol=lf
+*.yml text eol=lf
 *.nu text eol=lf

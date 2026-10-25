@@ -123,7 +123,8 @@ fn packages(feature: Feature, family: Family) -> Option<(&'static [&'static str]
             "Then enable libvirt: sudo systemctl enable --now libvirtd",
         ),
         (Virtualization, Suse) => (&["patterns-server-kvm_server", "virt-manager", "swtpm"], ""),
-        (SecurityTools, Debian | Fedora | Suse) => (&["mokutil", "tpm2-tools"], ""),
+        (SecurityTools, Debian | Fedora) => (&["mokutil", "tpm2-tools"], ""),
+        (SecurityTools, Suse) => (&["mokutil", "tpm2.0-tools"], ""),
         (SecurityTools, Arch) => (&["tpm2-tools"], "mokutil is in the AUR on Arch."),
         _ => return None,
     };

@@ -329,3 +329,81 @@ itself against the golden trace:
 
 The installed component's sha256 should read `e5eded92…`, and the trace's
 `406a75ed…`, as under Wine.
+
+## Compatibility overhaul: predecessor handoff (2026-10-25)
+
+The following records the prior agent's supplied test report, not a claim that
+all commands were rerun by the finishing agent. The handoff said approximately
+110 new-crate tests passed; the independent count below is more precise for the
+checked-out commit and must not be added to that estimate.
+
+- On a real Windows 11 PC: Portable Host passed headlessly (13 unit tests,
+  8 diagnostics, 7 replay tests) and moving-square passed 7 guest-logic tests.
+- Windows `mica doctor`, `inspect`, `plan`, `games`, and `compatibility` ran.
+  Installed Apex was detected with EA Javelin and D3D12; installed Fortnite was
+  detected with EAC and no Proton opt-in library. Neither game was played.
+- Windows `mica run` launched a Linux ELF through the PC's WSL2 Kali distro.
+- A static musl Linux build ran in WSL2 Kali: `doctor`, `security check`, and
+  the Wine fixture sequence (run, install, run the installed app by name).
+- Install/uninstall scripts passed on Windows and in WSL, including rejection
+  of a tampered checksum. The distro-check script passed in Kali.
+
+WSL is a virtualized Linux environment. Wine execution of a Windows fixture
+is not native Windows testing. Neither result demonstrates physical Linux boot
+security, graphics performance, ARM hardware compatibility, or multiplayer.
+
+## Independent finishing validation (2026-10-25)
+
+Starting commit: `0c95baf390f5f1c9638127cc7b44f0233f76da44`, branch
+`overhaul/mica-universal-compatibility`. Windows x86-64, Rust 1.99.1.
+
+- `cargo fmt --all --check`: passed.
+- `cargo clippy --locked -p mica-inspect -p mica-probe -p mica-security -p mica-compat -p mica-runtime -p mica-engine -p mica-cli --all-targets -- --deny warnings`: passed.
+- `cargo test --locked` for those seven crates: **90 passed** (CLI 1,
+  compatibility 5, engine 8, inspection 26 + 2 integration, probe 10,
+  runtime 19, security 19). No ignored tests. Two initial temporary-file
+  permission failures disappeared with TEMP/TMP set to a writable workspace
+  directory; no production code change was needed for that environment issue.
+- Guest built with `cargo build --locked -p moving-square --target wasm32-unknown-unknown --profile guest`
+  and wrapped with `wasm-tools component new` into
+  `target/component/moving-square.wasm`.
+- `cargo test --locked -p portable-host --no-default-features`: **28 passed**
+  (13 unit, 8 diagnostics, 7 replay). This was native Windows headless execution.
+- `cargo test --locked -p moving-square`: **7 passed**.
+
+Reproduction requires the pinned Rust toolchain and `wasm-tools`. Build/wrap
+the guest before the host tests; `.cargo/config.toml` supplies its expected path.
+No Portable Host source changes were made. No graphical Windows MSI session,
+physical Mac application launch, real-machine Gaming Boot Profile, protected
+multiplayer session, or game performance benchmark was performed here.
+
+### CI investigation
+
+The first inspected [MICA run](https://github.com/SwashX-dev/MICA-Multi-platform-Interoperability-Compatibility-Applicator-/actions/runs/40201697710)
+exposed issues in the inherited workflow: security readiness's expected failure
+exit stopped Linux reports; Ubuntu's `wine64` alone omitted the command wrapper;
+PowerShell 7 rejected `file://` test downloads; Bash cached the removed Debian
+binary's location; openSUSE uses `tpm2.0-tools`; and unstable Nixpkgs removed Intel
+Darwin. Intel Mac artifact upload also hit an external DNS failure. These are
+being corrected and final run results must be checked separately.
+
+Both `macos-15-intel` and `windows-11-arm` are valid hosted labels in
+[GitHub's runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+Hosted VM tests do not validate anti-cheat firmware readiness. Release workflow
+artifacts are test builds, not published releases. Fresh-machine installation
+instructions and example third-party app launches remain untested unless a
+specific record above or below says otherwise.
+
+Additional local checks after the CI fixes: PowerShell installer accepted a
+valid local release archive, rejected an all-zero checksum before installation,
+and removed the test binary. This isolated test used `MICA_NO_PATH=1`; CI tests
+user-PATH changes. Windows MICA launched a copied Linux `/bin/echo` through WSL
+with the expected output and exit 0. `doctor --json`, `inspect` on Windows
+Notepad, `config path`, and `bench --iterations 10 --json` also ran. The debug
+benchmark is a smoke test, not a representative performance measurement.
+
+Nix 2.34.8 in WSL Kali: after adding a locked Nixpkgs 26.05 input solely for Intel Darwin,
+
+    nix flake show --all-systems
+
+completed successfully for all four systems. This is evaluation, not build success.
