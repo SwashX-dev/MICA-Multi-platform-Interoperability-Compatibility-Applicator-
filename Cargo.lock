@@ -704,6 +704,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "mica-cli"
+version = "0.2.0"
+
+[[package]]
+name = "mica-compat"
+version = "0.2.0"
+
+[[package]]
+name = "mica-engine"
+version = "0.2.0"
+
+[[package]]
+name = "mica-inspect"
+version = "0.2.0"
+dependencies = [
+ "serde",
+ "sha2 0.11.1",
+]
+
+[[package]]
+name = "mica-probe"
+version = "0.2.0"
+dependencies = [
+ "mica-inspect",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mica-runtime"
+version = "0.2.0"
+
+[[package]]
+name = "mica-security"
+version = "0.2.0"
+dependencies = [
+ "mica-probe",
+ "serde",
+ "sha2 0.11.1",
+]
+
+[[package]]
 name = "moving-square"
 version = "0.1.0"
 dependencies = [

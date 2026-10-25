@@ -1,0 +1,14 @@
+[package]
+name = "mica-probe"
+version = "0.2.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Read-only detection of the host: OS, distribution, CPU, GPU, virtualization, and platform security state"
+
+[dependencies]
+mica-inspect.workspace = true
+serde.workspace = true
+serde_json.workspace = true
